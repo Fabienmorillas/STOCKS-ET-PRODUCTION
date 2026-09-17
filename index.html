@@ -1,0 +1,2793 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOUD - stocks et production</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- SDK Firebase (v8, syntaxe "compat") : c'est cette syntaxe (db.doc().get/set/update/onSnapshot,
+     db.collection().where().onSnapshot, snap.exists, snap.data()) que tout le code plus bas utilise déjà. -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    /* Charte FOUD : charbon #48412F, crème #F4EEE1, rouge #E8250A */
+    --bg: #F4EEE1;
+    --surface: #FFFEFA;
+    --surface-2: #EBE2CC;
+    --ink: #38321F;
+    --ink-2: #6B6350;
+    --ink-3: #93896F;
+    --border: rgba(72,65,47,0.14);
+    --border-strong: rgba(72,65,47,0.24);
+    --accent: #48412F;
+    --accent-ink: #F4EEE1;
+    --accent-wash: #E5DCC3;
+    --brand-red: #E8250A;
+    --good: #0ca30c;
+    --good-wash: #e3f3de;
+    --warning: #a3660a;
+    --warning-wash: #f9ead0;
+    --critical: #E8250A;
+    --critical-wash: #fbe1da;
+    /* Couleurs pastel par catégorie (en-têtes de tableau Entrées/Plats/Desserts/Pain/Fromages/Yaourts) */
+    --cc-entrees-wash: hsl(5, 70%, 91%);       --cc-entrees-ink: hsl(5, 55%, 34%);
+    --cc-plats-wash: hsl(30, 75%, 90%);        --cc-plats-ink: hsl(30, 60%, 32%);
+    --cc-desserts-wash: hsl(330, 65%, 92%);    --cc-desserts-ink: hsl(330, 50%, 38%);
+    --cc-pain-wash: hsl(48, 70%, 88%);         --cc-pain-ink: hsl(42, 55%, 30%);
+    --cc-fromages-wash: hsl(145, 45%, 90%);    --cc-fromages-ink: hsl(145, 45%, 28%);
+    --cc-yaourts-wash: hsl(185, 50%, 89%);     --cc-yaourts-ink: hsl(185, 45%, 28%);
+    --shadow: 0 1px 2px rgba(56,50,31,0.05), 0 8px 24px -12px rgba(56,50,31,0.20);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0e0d0a;
+      --surface: #1c1a14;
+      --surface-2: #262319;
+      --ink: #F4EEE1;
+      --ink-2: #C9C0A6;
+      --ink-3: #948B72;
+      --border: rgba(244,238,225,0.12);
+      --border-strong: rgba(244,238,225,0.20);
+      --accent: #F4EEE1;
+      --accent-ink: #2A2517;
+      --accent-wash: #33301f;
+      --brand-red: #FF5B3C;
+      --good: #23c623;
+      --good-wash: #16290f;
+      --warning: #f2a91e;
+      --warning-wash: #2e2308;
+      --critical: #FF5B3C;
+      --critical-wash: #3a1a11;
+      --cc-entrees-wash: hsl(5, 35%, 16%);       --cc-entrees-ink: hsl(5, 70%, 72%);
+      --cc-plats-wash: hsl(30, 40%, 15%);        --cc-plats-ink: hsl(30, 75%, 68%);
+      --cc-desserts-wash: hsl(330, 30%, 17%);    --cc-desserts-ink: hsl(330, 65%, 75%);
+      --cc-pain-wash: hsl(45, 35%, 14%);         --cc-pain-ink: hsl(42, 70%, 65%);
+      --cc-fromages-wash: hsl(145, 25%, 14%);    --cc-fromages-ink: hsl(145, 55%, 62%);
+      --cc-yaourts-wash: hsl(185, 28%, 14%);     --cc-yaourts-ink: hsl(185, 55%, 65%);
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 12px 28px -14px rgba(0,0,0,0.65);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0e0d0a;
+    --surface: #1c1a14;
+    --surface-2: #262319;
+    --ink: #F4EEE1;
+    --ink-2: #C9C0A6;
+    --ink-3: #948B72;
+    --border: rgba(244,238,225,0.12);
+    --border-strong: rgba(244,238,225,0.20);
+    --accent: #F4EEE1;
+    --accent-ink: #2A2517;
+    --accent-wash: #33301f;
+    --brand-red: #FF5B3C;
+    --good: #23c623;
+    --good-wash: #16290f;
+    --warning: #f2a91e;
+    --warning-wash: #2e2308;
+    --critical: #FF5B3C;
+    --critical-wash: #3a1a11;
+    --cc-entrees-wash: hsl(5, 35%, 16%);       --cc-entrees-ink: hsl(5, 70%, 72%);
+    --cc-plats-wash: hsl(30, 40%, 15%);        --cc-plats-ink: hsl(30, 75%, 68%);
+    --cc-desserts-wash: hsl(330, 30%, 17%);    --cc-desserts-ink: hsl(330, 65%, 75%);
+    --cc-pain-wash: hsl(45, 35%, 14%);         --cc-pain-ink: hsl(42, 70%, 65%);
+    --cc-fromages-wash: hsl(145, 25%, 14%);    --cc-fromages-ink: hsl(145, 55%, 62%);
+    --cc-yaourts-wash: hsl(185, 28%, 14%);     --cc-yaourts-ink: hsl(185, 55%, 65%);
+    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 12px 28px -14px rgba(0,0,0,0.65);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    padding-inline: 16px;
+    padding-block: 20px 64px;
+  }
+  .num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ---- Top bar ---- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: baseline; gap: 9px; }
+  .brand h1 {
+    font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 27px; font-weight: 400; margin: 0;
+    letter-spacing: 0.01em; line-height: 1; color: var(--ink);
+  }
+  .brand h1 .dot { color: var(--brand-red); }
+  .brand .tag { font-size: 12px; color: var(--ink-3); }
+
+  .tabs { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
+  .tabs button {
+    appearance: none; border: none; background: transparent; color: var(--ink-2);
+    font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 15px; letter-spacing: 0.03em;
+    padding: 6px 17px 5px; border-radius: 999px; cursor: pointer;
+  }
+  .tabs button.active { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- Sub bar ---- */
+  .subbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; box-shadow: var(--shadow);
+  }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); font-weight: 600; }
+  select, input[type="date"], input[type="number"], input[type="text"], input[type="password"] {
+    font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: 7px; padding: 7px 9px; font-size: 14px;
+  }
+  select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input:disabled { opacity: 0.45; cursor: not-allowed; background: var(--surface-2); }
+  select:disabled { opacity: 0.75; cursor: not-allowed; background: var(--surface-2); }
+  .dateNav { display: flex; align-items: center; gap: 6px; }
+  .iconbtn {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-2);
+    width: 30px; height: 30px; border-radius: 7px; cursor: pointer; font-size: 15px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; flex: none;
+  }
+  .iconbtn:hover { background: var(--surface-2); }
+  .textbtn {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-2);
+    height: 30px; padding: 0 12px; border-radius: 7px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
+  }
+  .textbtn:hover { background: var(--surface-2); }
+  .spacer { flex: 1; }
+  .weekLabel { font-size: 13.5px; font-weight: 600; white-space: nowrap; min-width: 150px; text-align: center; }
+  .savepill { font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .savepill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
+  .savepill.saved .dot { background: var(--good); }
+  .savepill.saving .dot { background: var(--warning); }
+
+  /* ---- Section headers (Boutique view) ---- */
+  .section-title { display: flex; align-items: baseline; gap: 8px; margin: 4px 2px 0; }
+  .section-title h2 { font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 19px; letter-spacing: 0.02em; font-weight: 400; margin: 0; }
+  .section-title span.hint, .hint { font-size: 12px; color: var(--ink-3); }
+
+  /* ---- Stat tiles ---- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
+  .tile .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); font-weight: 600; }
+  .tile .value { font-size: 26px; font-weight: 700; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .tile .value.crit { color: var(--critical); }
+  .tile .value.warn { color: var(--warning); }
+  .tile .sub { font-size: 12px; color: var(--ink-3); }
+  .tile-select {
+    font-size: 12px; color: var(--ink-3); background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 6px; align-self: flex-start; cursor: pointer;
+  }
+  .tile-select:hover { color: var(--ink); border-color: var(--border-strong); }
+
+  .banner { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: var(--radius); font-size: 13px; background: var(--warning-wash); color: var(--ink); border: 1px solid var(--border); }
+  .banner b { font-weight: 600; }
+
+  /* ---- Category cards ---- */
+  .cat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .cat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; gap: 10px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .cat-head h2 { font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 16px; letter-spacing: 0.05em; margin: 0; font-weight: 400; color: var(--ink-2); }
+  .cat-head .count { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+  /* Code couleur pastel par catégorie, en-tête de carte (Entrées/Plats/Desserts/Pain/Fromages/Yaourts) —
+     Commentaires reprend plutôt la couleur de chaque boutique, appliquée dynamiquement en JS (voir
+     buildCommentsRecap() et updateCommentsSectionColor()). */
+  .cat-head.cc-entrees { background: var(--cc-entrees-wash); color: var(--cc-entrees-ink); } .cat-head.cc-entrees h2 { color: var(--cc-entrees-ink); }
+  .cat-head.cc-plats { background: var(--cc-plats-wash); color: var(--cc-plats-ink); } .cat-head.cc-plats h2 { color: var(--cc-plats-ink); }
+  .cat-head.cc-desserts { background: var(--cc-desserts-wash); color: var(--cc-desserts-ink); } .cat-head.cc-desserts h2 { color: var(--cc-desserts-ink); }
+  .cat-head.cc-pain { background: var(--cc-pain-wash); color: var(--cc-pain-ink); } .cat-head.cc-pain h2 { color: var(--cc-pain-ink); }
+  .cat-head.cc-fromages { background: var(--cc-fromages-wash); color: var(--cc-fromages-ink); } .cat-head.cc-fromages h2 { color: var(--cc-fromages-ink); }
+  .cat-head.cc-yaourts { background: var(--cc-yaourts-wash); color: var(--cc-yaourts-ink); } .cat-head.cc-yaourts h2 { color: var(--cc-yaourts-ink); }
+
+  .scrollx { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  thead th.num, tbody td.num { text-align: right; }
+  tbody td { padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td.name { color: var(--ink); white-space: nowrap; padding-right: 16px; }
+  tbody td.name .sub { color: var(--ink-3); font-size: 12px; }
+
+  /* Largeur fixe (indépendante du nom du produit) pour que les colonnes de chiffres démarrent
+     exactement au même endroit dans toutes les catégories/tableaux (Boutique, Réassort, Production).
+     Chaque catégorie ayant son propre <table>, sans cette largeur commune, un nom de produit plus
+     long dans une catégorie décale ses colonnes de chiffres par rapport aux autres catégories. */
+  th.name-col, td.name { width: 190px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+  thead tr th.name-col { background: var(--surface-2); }
+
+  /* Produit désactivé dans le catalogue, mais visible en boutique pour écouler le stock restant */
+  tr.row-inactive-product { opacity: 0.6; }
+  .inactive-badge { margin-left: 8px; font-size: 9.5px; padding: 2px 7px; }
+
+  /* Même largeur que .prevision-input (Production) pour que les colonnes de chiffres restent
+     alignées entre Boutique et Production, et que les valeurs à 3 chiffres (réassort/BOX cumulés) ne débordent pas. */
+  .qty-input, .prevision-input { width: 64px; text-align: right; padding: 5px 7px; }
+
+  .total-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--surface-2); }
+  thead th.total-col { background: var(--surface-2); }
+  .reassort-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--warning-wash); }
+  thead th.reassort-col { background: var(--warning-wash); color: var(--warning); }
+  .box-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--accent-wash); }
+  thead th.box-col { background: var(--accent-wash); color: var(--accent); }
+  .num-zero { color: var(--ink-3); font-weight: 400; }
+  .num-nonzero { color: var(--ink); font-weight: 600; }
+
+  .produce-val { font-weight: 700; font-size: 14.5px; }
+  .row-critical .produce-val { color: var(--critical); }
+  .row-warning .produce-val { color: var(--warning); }
+  .row-good .produce-val { color: var(--good); }
+
+  .status-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .status-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-chip.crit { background: var(--critical-wash); color: var(--critical); }
+  .status-chip.crit .dot { background: var(--critical); }
+  .status-chip.warn { background: var(--warning-wash); color: var(--warning); }
+  .status-chip.warn .dot { background: var(--warning); }
+  .status-chip.good { background: var(--good-wash); color: var(--good); }
+  .status-chip.good .dot { background: var(--good); }
+
+  .check { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--border-strong); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; padding: 0; }
+  .check.on { background: var(--good); border-color: var(--good); }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); padding: 2px 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ---- Couleur de boutique ---- */
+  .site-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18); }
+  .site-select-row { display: flex; align-items: center; gap: 8px; }
+  .site-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; margin: 2px 4px 2px 0; }
+  .site-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .site-th-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; flex: none; }
+  input[type="color"].site-color-input, input[type="color"].cat-color-input { width: 34px; height: 30px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); cursor: pointer; flex: none; }
+
+  footer.note { font-size: 12px; color: var(--ink-3); text-align: center; padding-top: 4px; }
+
+  /* ---- Menu (admin) view ---- */
+  .menu-item-row { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-bottom: 1px solid var(--border); }
+  .menu-item-row:last-child { border-bottom: none; }
+  .menu-item-row input[type="text"] { flex: 1; min-width: 0; }
+  .toggle-pill { appearance: none; border: 1px solid var(--border-strong); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; background: var(--surface); color: var(--ink-3); }
+  .toggle-pill.on { background: var(--good-wash); color: var(--good); border-color: transparent; }
+  .toggle-pill.off { background: var(--surface-2); color: var(--ink-3); }
+  .ghostbtn { appearance: none; border: none; background: transparent; color: var(--ink-3); cursor: pointer; width: 26px; height: 26px; flex: none; border-radius: 6px; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .ghostbtn:hover { background: var(--surface-2); color: var(--ink); }
+  .ghostbtn.danger:hover { background: var(--critical-wash); color: var(--critical); }
+  .ghostbtn.confirming { background: var(--critical); color: #fff; font-weight: 700; animation: confirmPulse 0.7s ease-in-out infinite alternate; }
+  @keyframes confirmPulse { from { box-shadow: 0 0 0 0 var(--critical-wash); } to { box-shadow: 0 0 0 4px var(--critical-wash); } }
+  .add-row { display: flex; gap: 8px; padding: 10px 14px; background: var(--surface-2); }
+  .add-row input[type="text"] { flex: 1; }
+  .add-row button { appearance: none; border: none; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; font-size: 13px; padding: 7px 14px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  .newcat-row { display: flex; gap: 8px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 12px 14px; }
+  .newcat-row input[type="text"] { flex: 1; }
+  .newcat-row button { appearance: none; border: none; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  .menu-hint { font-size: 12.5px; color: var(--ink-3); }
+
+  /* ---- Commentaires ---- */
+  .comment-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
+  .comment-row:last-child { border-bottom: none; }
+  .comment-text { font-size: 13.5px; color: var(--ink); flex: 1; }
+  .comment-site { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-2); }
+  .comment-time { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; font-family: "IBM Plex Mono", monospace; }
+  .comment-meta { display: flex; align-items: center; gap: 2px; flex: none; }
+  .comment-edit-input { flex: 1; font-size: 13.5px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); font-family: inherit; }
+  .comment-empty { padding: 14px; font-size: 13px; color: var(--ink-3); }
+
+  /* ---- Commentaire de cellule (Production — colonne Prévision) ---- */
+  td.forecast-cell { position: relative; }
+  .forecast-comment-badge { position: absolute; top: -5px; right: -5px; width: 17px; height: 17px; border-radius: 50%; background: var(--critical); color: #fff; font-size: 11px; font-weight: 800; line-height: 17px; text-align: center; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .cell-comment-popover { position: fixed; z-index: 1000; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px; width: 230px; display: flex; flex-direction: column; gap: 8px; }
+  .cell-comment-popover .ccp-label { font-size: 12px; font-weight: 700; color: var(--ink-2); }
+  .cell-comment-popover textarea { width: 100%; min-height: 64px; resize: vertical; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); }
+  .cell-comment-popover .ccp-row { display: flex; justify-content: flex-end; gap: 6px; }
+  .cell-comment-popover .ccp-row .btn-primary { padding: 6px 12px; font-size: 12.5px; }
+
+  /* ---- Accès (panneau admin) ---- */
+  .access-grid { display: flex; flex-direction: column; gap: 2px; padding: 6px 14px 4px; }
+  .access-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .access-row:last-child { border-bottom: none; }
+  .access-row .lbl { font-size: 13.5px; }
+  .access-row .lbl .sub { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 400; }
+  .access-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 14px; }
+  .access-fields .field-full { grid-column: 1 / -1; }
+  .access-fields label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); font-weight: 600; margin-bottom: 4px; }
+  .access-fields input { width: 100%; }
+  .btn-primary { appearance: none; border: none; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 18px; border-radius: 8px; cursor: pointer; }
+  .btn-primary:hover { opacity: 0.9; }
+  .access-note { padding: 0 14px 14px; margin: 0; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+
+  /* ---- Écran de connexion ---- */
+  .authgate { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .authcard { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 30px 26px; display: flex; flex-direction: column; gap: 14px; }
+  .authcard h1 { font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 28px; margin: 0; text-align: center; color: var(--ink); }
+  .authcard h1 .dot { color: var(--brand-red); }
+  .authcard > p.hint { text-align: center; margin: -8px 0 4px; }
+  .roletabs { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
+  .roletabs button { flex: 1; appearance: none; border: none; background: transparent; color: var(--ink-2); font: inherit; font-weight: 600; font-size: 13px; padding: 8px 0; border-radius: 999px; cursor: pointer; }
+  .roletabs button.active { background: var(--accent); color: var(--accent-ink); }
+  .loginform { display: flex; flex-direction: column; gap: 10px; }
+  .loginform label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); font-weight: 600; }
+  .loginform input { width: 100%; }
+  .loginform .btn-primary { width: 100%; padding: 10px; font-size: 14px; margin-top: 2px; }
+  .autherror { color: var(--critical); font-size: 12.5px; text-align: center; margin: 0; min-height: 1.2em; }
+
+  .rolebar { display: flex; align-items: center; gap: 8px; }
+  .rolepill { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+
+  /* ---- Journal des modifications ---- */
+  .journal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 900; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+  .journal-panel { width: 100%; max-width: 720px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .journal-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 4px; }
+  .journal-panel-head h2 { margin: 0; font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 20px; letter-spacing: 0.02em; color: var(--ink); }
+  .journal-panel > p.access-note { margin: 6px 18px 10px; }
+  .journal-list { max-height: 60vh; overflow-y: auto; border-top: 1px solid var(--border); }
+  .journal-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .journal-row:last-child { border-bottom: none; }
+  .journal-row .j-time { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; font-family: "IBM Plex Mono", monospace; min-width: 90px; }
+  .journal-row .j-role { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+  .journal-row .j-text { color: var(--ink); flex: 1; }
+  .journal-row .j-text .j-detail { color: var(--ink-3); }
+  @media print { .journal-overlay { display: none !important; } }
+
+  @media (max-width: 640px) {
+    thead th.hide-sm, tbody td.hide-sm { display: none; }
+    .brand h1 { font-size: 17px; }
+  }
+
+  /* ---- Impression ---- */
+  .print-header { display: none; }
+  #printBtn { font-size: 13.5px; }
+
+  @media print {
+    @page { size: A4 landscape; margin: 12mm; }
+    * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+    body { background: #fff; padding: 0; }
+    .wrap { max-width: none; gap: 8px; }
+
+    #authGate, .topbar, footer.note,
+    .subbar, .savepill,
+    .add-row, .newcat-row, .menu-hint,
+    .ghostbtn, .access-panel-card { display: none !important; }
+
+    .print-header {
+      display: block; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 2px solid var(--ink);
+    }
+    .print-header h1 { font-family: "Bebas Neue", "IBM Plex Sans", sans-serif; font-size: 22px; margin: 0 0 3px; font-weight: 400; }
+    .print-header .meta { font-size: 11.5px; color: #333; }
+
+    .section-title { margin-top: 10px; }
+    .section-title .hint { display: none; }
+
+    .tiles { break-inside: avoid; }
+    .cat { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
+    .cat-head { background: #eee !important; }
+
+    .scrollx { overflow: visible !important; }
+    table { break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+
+    input, select {
+      border: none !important; background: transparent !important; padding: 1px 4px !important;
+      color: #000 !important; -webkit-appearance: none; appearance: none;
+    }
+    input:disabled { opacity: 1 !important; -webkit-text-fill-color: #000; }
+    input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    .comment-row, .comment-empty { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div id="authGate" class="authgate">
+  <div class="authcard">
+    <h1>FOUD - stocks et production</h1>
+    <p class="hint">Accès réservé aux équipes boutique et production</p>
+    <div class="roletabs">
+      <button id="roleTabBoutique" type="button" class="active">Manager</button>
+      <button id="roleTabCuisine" type="button">Cuisine</button>
+      <button id="roleTabAdmin" type="button">Admin</button>
+    </div>
+    <form id="boutiqueLoginForm" class="loginform">
+      <label for="managerEmailInput">Email</label>
+      <input type="email" id="managerEmailInput" autocomplete="username" required>
+      <label for="managerPasswordInput">Mot de passe</label>
+      <input type="password" id="managerPasswordInput" autocomplete="current-password" required>
+      <button type="submit" class="btn-primary">Entrer</button>
+    </form>
+    <form id="cuisineLoginForm" class="loginform" style="display:none;">
+      <label for="cuisinePasswordInput">Mot de passe cuisine</label>
+      <input type="password" id="cuisinePasswordInput" autocomplete="current-password" required>
+      <button type="submit" class="btn-primary">Entrer</button>
+    </form>
+    <form id="adminLoginForm" class="loginform" style="display:none;">
+      <label for="adminIdInput">Identifiant admin</label>
+      <input type="text" id="adminIdInput" autocomplete="username" required>
+      <label for="adminPasswordInput">Mot de passe admin</label>
+      <input type="password" id="adminPasswordInput" autocomplete="current-password" required>
+      <button type="submit" class="btn-primary">Entrer</button>
+    </form>
+    <p class="autherror" id="authError"></p>
+    <p class="hint" id="authLoadingHint">Chargement des accès…</p>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <h1>FOUD - stocks et production</h1>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Vue">
+      <button id="tabBoutique" class="active" role="tab" aria-selected="true">Boutique</button>
+      <button id="tabReassort" role="tab" aria-selected="false">Réassort</button>
+      <button id="tabComments" role="tab" aria-selected="false">Commentaires</button>
+      <button id="tabProduction" role="tab" aria-selected="false">Production</button>
+      <button id="tabMenu" role="tab" aria-selected="false">Menu</button>
+      <button id="tabParametres" role="tab" aria-selected="false">Paramètres</button>
+    </div>
+    <div class="rolebar">
+      <span class="rolepill" id="rolePill"></span>
+      <button class="textbtn" id="journalBtn">📜 Journal</button>
+      <button class="textbtn" id="printBtn">🖨 Imprimer</button>
+      <span class="hint" id="printHint" style="display:none"></span>
+      <button class="textbtn" id="logoutBtn">Déconnexion</button>
+    </div>
+  </div>
+
+  <div id="printHeader" class="print-header"></div>
+
+  <div id="journalOverlay" class="journal-overlay" style="display:none">
+    <div class="journal-panel">
+      <div class="journal-panel-head">
+        <h2>Journal des modifications</h2>
+        <button type="button" class="ghostbtn" id="journalCloseBtn" title="Fermer" aria-label="Fermer">✕</button>
+      </div>
+      <p class="access-note">Historique des changements faits dans l'appli (stock, réassort, commentaires, production, catalogue, accès). Comme il n'y a pas de compte par personne, chaque ligne indique la boutique ou "Admin", pas un nom précis. Les 300 dernières actions sont affichées.</p>
+      <div id="journalList" class="journal-list"><p class="comment-empty">Chargement…</p></div>
+    </div>
+  </div>
+
+  <!-- ===== BOUTIQUE VIEW ===== -->
+  <div id="viewBoutique">
+    <div class="subbar">
+      <div class="field">
+        <label for="siteSelect">Boutique</label>
+        <div class="site-select-row">
+          <span id="siteColorDot" class="site-dot" aria-hidden="true"></span>
+          <select id="siteSelect"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h2>Stock &amp; Réassort</h2>
+      <span class="hint">4 dates de stock indépendantes par boutique, modifiables une par une ; Réassort demandé et BOX pour la date choisie, dans les 2 dernières colonnes (les deux sont comptés dans le besoin de production)</span>
+    </div>
+    <div class="subbar">
+      <div class="field">
+        <label>Dates de stock</label>
+        <div class="dateNav" style="flex-wrap:wrap; row-gap:6px;">
+          <input type="date" class="stockColDate" id="stockColDate0" aria-label="Date colonne 1">
+          <input type="date" class="stockColDate" id="stockColDate1" aria-label="Date colonne 2">
+          <input type="date" class="stockColDate" id="stockColDate2" aria-label="Date colonne 3">
+          <input type="date" class="stockColDate" id="stockColDate3" aria-label="Date colonne 4">
+        </div>
+      </div>
+      <button class="textbtn" id="resetStockDatesBtn">Aujourd'hui + 3j</button>
+      <div class="field">
+        <label for="dateInputR">Réassort pour le</label>
+        <div class="dateNav">
+          <button class="iconbtn" id="prevDayR" aria-label="Jour précédent">‹</button>
+          <input type="date" id="dateInputR">
+          <button class="iconbtn" id="nextDayR" aria-label="Jour suivant">›</button>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="savepill" id="stockSaveStatus"><span class="dot"></span>Stock&nbsp;: <span id="stockSaveStatusText">—</span></div>
+      <div class="savepill" id="reassortSaveStatus"><span class="dot"></span>Réassort&nbsp;: <span id="reassortSaveStatusText">—</span></div>
+    </div>
+    <div id="catListStock" style="display:flex; flex-direction:column; gap:12px; margin-top:10px;"></div>
+
+    <div class="section-title" style="margin-top:6px;">
+      <h2 id="commentsSectionTitle">Commentaires</h2>
+      <span class="hint">notes pour la date de réassort sélectionnée ci-dessus, visibles dans l'onglet Commentaires</span>
+    </div>
+    <div class="cat" style="margin-top:10px;">
+      <div class="add-row" id="commentsAddRow">
+        <input type="text" id="commentInput" placeholder="Ajouter une note pour cette date…">
+        <button id="commentAddBtn">Ajouter</button>
+      </div>
+      <div id="commentsList"></div>
+    </div>
+  </div>
+
+  <!-- ===== COMMENTAIRES VIEW (récap par boutique) ===== -->
+  <div id="viewComments" style="display:none;">
+    <div class="subbar">
+      <span class="hint">Notes des 14 derniers jours, les plus récentes en premier — une carte par boutique</span>
+    </div>
+    <div id="commentsRecap" style="display:flex; flex-direction:column; gap:12px; margin-top:12px;"></div>
+  </div>
+
+  <!-- ===== RÉASSORT VIEW (toutes boutiques) ===== -->
+  <div id="viewReassort" style="display:none;">
+    <div class="subbar">
+      <div class="field">
+        <label for="dateInputRZ">Date</label>
+        <div class="dateNav">
+          <button class="iconbtn" id="prevDayRZ" aria-label="Jour précédent">‹</button>
+          <input type="date" id="dateInputRZ">
+          <button class="iconbtn" id="nextDayRZ" aria-label="Jour suivant">›</button>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <span class="hint" id="reassortMatrixSub">chargement…</span>
+    </div>
+    <div class="legend" style="margin-top:2px;"><span>Quantités affichées : Réassort demandé + BOX, cumulés par boutique</span></div>
+
+    <div id="reassortMissingBanner" class="banner" style="display:none; margin-top:12px;">
+      <span>⚠️</span>
+      <span><b>Pas encore transmis pour cette date&nbsp;:</b> <span id="reassortMissingList"></span></span>
+    </div>
+
+    <div id="catListReassortMatrix" style="display:flex; flex-direction:column; gap:12px; margin-top:12px;"></div>
+  </div>
+
+  <!-- ===== PRODUCTION VIEW ===== -->
+  <div id="viewProduction" style="display:none;">
+    <div class="subbar">
+      <div class="field">
+        <label for="dateInputP">Date de production</label>
+        <input type="date" id="dateInputP" disabled>
+      </div>
+      <span class="hint">Toujours identique à la date de Réassort saisie dans l'onglet Boutique</span>
+    </div>
+
+    <div class="tiles" style="margin-top:12px;">
+      <div class="tile">
+        <span class="label">Boutiques ayant saisi</span>
+        <span class="value" id="tileSubmitted">–/–</span>
+        <span class="sub" id="tileSubmittedSub">chargement…</span>
+      </div>
+      <div class="tile">
+        <span class="label">Produits en rupture</span>
+        <span class="value crit" id="tileCritical">–</span>
+        <span class="sub">stock à 0, réassort demandé</span>
+      </div>
+      <div class="tile">
+        <span class="label">Pièces à produire</span>
+        <span class="value warn" id="tileToProduce">–</span>
+        <select id="prodCatFilter" class="tile-select"><option value="all">Toutes catégories</option></select>
+      </div>
+      <div class="tile">
+        <span class="label">BOX</span>
+        <span class="value" id="tileBox">–</span>
+        <span class="sub">total commandé en BOX, catégorie Plats</span>
+      </div>
+    </div>
+
+    <div id="missingBanner" class="banner" style="display:none; margin-top:12px;">
+      <span>⚠️</span>
+      <span><b>Pas encore saisi pour cette date&nbsp;:</b> <span id="missingList"></span></span>
+    </div>
+
+    <div class="legend" style="margin-top:12px;">
+      <span><span class="dot" style="background:var(--critical)"></span>Rupture — aucun stock, réassort ou BOX en attente</span>
+      <span><span class="dot" style="background:var(--warning)"></span>À produire — stock partiel</span>
+      <span><span class="dot" style="background:var(--good)"></span>Couvert — rien à produire</span>
+    </div>
+
+    <div id="catListProduction" style="display:flex; flex-direction:column; gap:12px; margin-top:12px;"></div>
+  </div>
+
+  <!-- ===== MENU (ADMIN) VIEW ===== -->
+  <div id="viewMenu" style="display:none;">
+    <div class="subbar">
+      <span class="menu-hint">Le menu est partagé : activer, désactiver, renommer ou ajouter un produit ici change ce que voient toutes les boutiques et la production, en direct.</span>
+    </div>
+    <div id="catListMenu" style="display:flex; flex-direction:column; gap:12px; margin-top:12px;"></div>
+    <div class="newcat-row" style="margin-top:12px;">
+      <input type="text" id="newCatName" placeholder="Nouvelle catégorie (ex. Boissons)">
+      <button id="newCatBtn">+ Ajouter une catégorie</button>
+    </div>
+  </div>
+
+  <!-- ===== PARAMÈTRES (ADMIN) VIEW ===== -->
+  <div id="viewParametres" style="display:none;">
+    <div id="catListParametres" style="display:flex; flex-direction:column; gap:12px; margin-top:12px;"></div>
+  </div>
+
+  <footer class="note">Les 10 sites partagent cette base en direct — les chiffres se mettent à jour dès qu'une boutique enregistre.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // Configuration Firebase — REMPLACEZ ces valeurs par celles de VOTRE projet
+  // (Console Firebase > Paramètres du projet > Vos applications > icône Web </> > Config SDK).
+  // Voir les instructions de déploiement fournies avec ce fichier pour la marche à suivre complète
+  // (création du projet, activation de Firestore et de l'authentification anonyme, règles de sécurité).
+  // ---------------------------------------------------------------------
+  var firebaseConfig = {
+  apiKey: "AIzaSyBQfyjXyz76JU_VuYo-nLWWReCleeGyHj4",
+  authDomain: "projet-reassort.firebaseapp.com",
+  databaseURL: "https://projet-reassort-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "projet-reassort",
+  storageBucket: "projet-reassort.firebasestorage.app",
+  messagingSenderId: "860250217168",
+  appId: "1:860250217168:web:4fc6d058468c06fa695cd5"
+  };
+
+  // ---------------------------------------------------------------------
+  // Catalogue par défaut (sert une seule fois, à l'amorçage de la base)
+  // ---------------------------------------------------------------------
+  var DEFAULT_CATALOG = [
+    { id: "entrees", label: "Entrées", items: [
+      { id: "oeufs-mimosa", name: "Œufs mimosa", active: true },
+      { id: "salade-fraiche", name: "Salade fraîche", active: true },
+      { id: "gaspacho-melon", name: "Gaspacho melon", active: true },
+      { id: "gaspacho-tomates", name: "Gaspacho tomates *", active: true },
+      { id: "chachouka-feta", name: "Chachouka féta *", active: true }
+    ]},
+    { id: "plats", label: "Plats", items: [
+      { id: "poulet-grille", name: "Poulet grillé", active: true },
+      { id: "roti-de-boeuf", name: "Rôti de bœuf", active: true },
+      { id: "burrata-quinoa", name: "Burrata quinoa", active: true },
+      { id: "cacio-e-pepe", name: "Cacio e pepe", active: true },
+      { id: "aubergines-parmesane", name: "Aubergines parmesane", active: true },
+      { id: "thon-mi-cuit", name: "Thon mi-cuit", active: true },
+      { id: "quinoa-bowl-patate-douce", name: "Quinoa bowl patate douce", active: true },
+      { id: "blanquette-de-volaille", name: "Blanquette de volaille *", active: true },
+      { id: "dos-de-lieu", name: "Dos de lieu *", active: true },
+      { id: "salade-harengs", name: "Salade harengs *", active: true },
+      { id: "lasagne-bolognaise", name: "Lasagne Bolognaise *", active: true },
+      { id: "poulet-yassa", name: "Poulet Yassa *", active: true },
+      { id: "maquereau-fume", name: "Maquereau fumé *", active: true },
+      { id: "soupe-pistou", name: "Soupe pistou *", active: true },
+      { id: "penne-al-limone", name: "Penne al limone *", active: true },
+      { id: "salade-cesar", name: "Salade César *", active: true },
+      { id: "quinoa-bowl-boulettes", name: "Quinoa bowl boulettes *", active: true },
+      { id: "risotto-poulpe", name: "Comme un risotto de poulpe *", active: true }
+    ]},
+    { id: "desserts", label: "Desserts", items: [
+      { id: "mousse-chocolat", name: "Mousse chocolat", active: true },
+      { id: "salade-melon-pasteque", name: "Salade melon / pastèque", active: true },
+      { id: "tarte-citron", name: "Comme une tarte citron", active: true },
+      { id: "cake-citron", name: "Cake citron", active: true },
+      { id: "cookie-choco", name: "Cookie choco", active: true },
+      { id: "cookie-caramel", name: "Cookie caramel", active: true },
+      { id: "brownie", name: "Brownie", active: true },
+      { id: "panacolada", name: "Panacolada *", active: true },
+      { id: "cake-choco", name: "Cake choco *", active: true },
+      { id: "mini-viennoiseries", name: "Mini viennoiseries", active: true },
+      { id: "mini-brownie", name: "Mini brownie", active: true },
+      { id: "cake-marbre-entier", name: "Cake marbré entier", active: true }
+    ]},
+    { id: "pain", label: "Pain", items: [
+      { id: "pain-cuit", name: "Pain cuit", active: true },
+      { id: "pain-cru", name: "Pain cru", active: true }
+    ]},
+    { id: "fromages", label: "Fromages", items: [
+      { id: "pelardon", name: "Pélardon", active: true },
+      { id: "crottin-de-chevre", name: "Crottin de chèvre", active: true },
+      { id: "st-marcellin", name: "St Marcellin", active: true }
+    ]},
+    { id: "yaourts", label: "Yaourts", items: [
+      { id: "vanille", name: "Vanille", active: true },
+      { id: "citron", name: "Citron", active: true },
+      { id: "nature", name: "Nature", active: true }
+    ]}
+  ];
+
+  var CATALOG_PATH = "catalog/menu";
+  var catalog = [];
+  var catalogLoadedOnce = false;
+  // Les objets renvoyés par la base (snap.data()) sont en lecture seule : on les clone toujours
+  // avant de les affecter à `catalog`, sinon splice()/push()/l'édition directe (renommer, activer…) plantent.
+  function deepClone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
+
+  // Couleurs de boutique : chaque boutique a une couleur (modifiable par l'admin depuis Menu).
+  // Tant qu'aucune couleur n'est choisie pour une boutique, on lui en dérive une automatiquement
+  // (à partir de son id, donc stable même si l'ordre des boutiques change) via autoSiteColor().
+  var SITE_COLOR_PALETTE = ["#e0553f", "#e0894f", "#dcae3f", "#8fc93f", "#3fc97a", "#3fc9c0", "#3f8ec9", "#5f6fd9", "#8f3fc9", "#c93f8e", "#c9435f", "#4f9f5f"];
+  function hashStr(str) { str = String(str || ""); var h = 0; for (var i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) >>> 0; } return h; }
+  function autoSiteColor(id) { return SITE_COLOR_PALETTE[hashStr(id) % SITE_COLOR_PALETTE.length]; }
+  function siteColorOf(s) { return (s && s.color) || autoSiteColor(s && s.id); }
+  // Applique une couleur comme fond pastel + texte d'un en-tête .cat-head, en la mélangeant avec les
+  // couleurs de surface/texte du thème courant (clair/sombre) via color-mix(). headEl.style.color est
+  // aussi posé (pas seulement le <h2>) pour couvrir l'en-tête de Menu, qui utilise un <input> avec
+  // color:inherit plutôt qu'un <h2> (voir buildMenuView()).
+  function applyHeadColor(headEl, color) {
+    headEl.style.background = "color-mix(in srgb, " + color + " 22%, var(--surface))";
+    var textColor = "color-mix(in srgb, " + color + " 70%, var(--ink))";
+    headEl.style.color = textColor;
+    var h2 = headEl.querySelector("h2");
+    if (h2) h2.style.color = textColor;
+  }
+  function clearHeadColor(headEl) {
+    headEl.style.background = ""; headEl.style.color = "";
+    var h2 = headEl.querySelector("h2");
+    if (h2) h2.style.color = "";
+  }
+  function applySiteHeadColor(headEl, site) { applyHeadColor(headEl, siteColorOf(site)); }
+  // Couleur de catégorie choisie par l'admin depuis Menu (voir buildMenuView()) ; tant qu'aucune
+  // couleur n'est choisie, on garde l'ancien code couleur fixe par id (CATEGORY_COLOR_CLASS
+  // ci-dessous) pour ne rien changer visuellement sur les catégories existantes.
+  function applyCategoryHeadColor(headEl, cat) {
+    if (cat && cat.color) applyHeadColor(headEl, cat.color); else clearHeadColor(headEl);
+  }
+
+  // Liste de secours (utilisée tant que la liste enregistrée en base n'est pas encore chargée,
+  // et pour réamorcer la base si elle est vide) — modifiable ensuite par l'admin depuis Menu.
+  var DEFAULT_SITES = [
+    { id: "timone", label: "Timone", color: SITE_COLOR_PALETTE[0] },
+    { id: "aubagne", label: "Aubagne", color: SITE_COLOR_PALETTE[1] },
+    { id: "valentine", label: "Valentine", color: SITE_COLOR_PALETTE[2] },
+    { id: "aix-les-milles", label: "Aix-les-Milles", color: SITE_COLOR_PALETTE[3] },
+    { id: "aix-centre", label: "Aix Centre", color: SITE_COLOR_PALETTE[4] },
+    { id: "delory", label: "Delory", color: SITE_COLOR_PALETTE[5] },
+    { id: "erilia", label: "Erilia", color: SITE_COLOR_PALETTE[6] },
+    { id: "aeroport", label: "Aéroport", color: SITE_COLOR_PALETTE[7] },
+    { id: "pro-1", label: "Pro 1 — France Travail", color: SITE_COLOR_PALETTE[8] },
+    { id: "pro-2", label: "Pro 2 — Villa Mina", color: SITE_COLOR_PALETTE[9] }
+  ];
+  var SITES_PATH = "settings/sites";
+  // Amorcée avec la liste de secours dès le chargement (pour que tout s'affiche tout de suite),
+  // puis remplacée par la vraie liste enregistrée dès qu'elle arrive de la base (voir bootSites()).
+  var SITES = deepClone(DEFAULT_SITES);
+  var sitesLoadedOnce = false;
+
+  function renderSiteChipsInto(el, sites) {
+    el.innerHTML = "";
+    sites.forEach(function (s) {
+      var chip = document.createElement("span"); chip.className = "site-chip";
+      var dot = document.createElement("span"); dot.className = "dot"; dot.style.background = siteColorOf(s);
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(s.label));
+      el.appendChild(chip);
+    });
+  }
+
+  // Code couleur pastel par catégorie (en-têtes de tableau) — par id de catégorie du catalogue de base ;
+  // une catégorie ajoutée/renommée par l'admin qui ne correspond à aucun de ces ids garde l'en-tête neutre.
+  var CATEGORY_COLOR_CLASS = {
+    entrees: "cc-entrees", plats: "cc-plats", desserts: "cc-desserts",
+    pain: "cc-pain", fromages: "cc-fromages", yaourts: "cc-yaourts"
+  };
+  function categoryColorClass(cat) { return (cat && CATEGORY_COLOR_CLASS[cat.id]) || ""; }
+  function catHeadClass(cat) { var c = categoryColorClass(cat); return c ? "cat-head " + c : "cat-head"; }
+
+  function activeItems(cat) { return cat.items.filter(function (it) { return it.active !== false; }); }
+  function allItems() {
+    var out = [];
+    catalog.forEach(function (cat) { cat.items.forEach(function (it) { out.push(it); }); });
+    return out;
+  }
+  // Navigation clavier façon tableur dans la grille Stock/Réassort/BOX de l'onglet Boutique : Entrée
+  // passe au même champ sur la ligne (produit) suivante, en sautant les champs verrouillés/désactivés.
+  function focusNextRowInput(inputsByItemId, currentItemId) {
+    var orderedIds = allItems().map(function (it) { return it.id; });
+    var idx = orderedIds.indexOf(currentItemId);
+    if (idx === -1) return;
+    for (var i = idx + 1; i < orderedIds.length; i++) {
+      var next = inputsByItemId[orderedIds[i]];
+      if (next && !next.disabled) { next.focus(); if (next.select) next.select(); return; }
+    }
+  }
+  function allActiveItems() {
+    var out = [];
+    catalog.forEach(function (cat) { activeItems(cat).forEach(function (it) { out.push(it); }); });
+    return out;
+  }
+
+  function productName(id) {
+    var it = allItems().filter(function (x) { return x.id === id; })[0];
+    return it ? it.name : id;
+  }
+
+  function slugify(s) {
+    return (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "item";
+  }
+  function uniqueId(base, existingIds) {
+    var id = slugify(base), candidate = id, n = 1;
+    while (existingIds.indexOf(candidate) !== -1) { candidate = id + "-" + (++n); }
+    return candidate;
+  }
+
+  // ---------------------------------------------------------------------
+  // Dates (locales au navigateur, format YYYY-MM-DD)
+  // ---------------------------------------------------------------------
+  var WEEKDAY_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  var MONTH_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  function todayISO() { return isoFromDate(new Date()); }
+  function isoFromDate(d) {
+    var y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+  function dateFromISO(iso) { var p = iso.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function addDays(iso, n) { var d = dateFromISO(iso); d.setDate(d.getDate() + n); return isoFromDate(d); }
+  function shortLabel(iso) { var d = dateFromISO(iso); return WEEKDAY_FR[d.getDay()] + " " + d.getDate() + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
+  function rangeLabel(startIso, endIso) {
+    var a = dateFromISO(startIso), b = dateFromISO(endIso);
+    return a.getDate() + " " + MONTH_FR[a.getMonth()] + " – " + b.getDate() + " " + MONTH_FR[b.getMonth()];
+  }
+  function weekDates(startIso) { var out = []; for (var i = 0; i < 7; i++) out.push(addDays(startIso, i)); return out; }
+  var STOCK_VISIBLE_DAYS = 4;
+  function stockDates(startIso) { var out = []; for (var i = 0; i < STOCK_VISIBLE_DAYS; i++) out.push(addDays(startIso, i)); return out; }
+  // Heure de bascule quotidienne : le reset automatique ET le changement de date de réassort
+  // n'interviennent qu'à partir de cette heure-là (pas à minuit) — voir nextReassortDate() et
+  // checkDailyReset() plus bas.
+  var DAILY_CUTOVER_HOUR = 10;
+  // Date de réassort par défaut : le lendemain, sauf le vendredi où elle passe au lundi (on saute le
+  // week-end) — mais la bascule vers le jour suivant n'a lieu qu'à partir de DAILY_CUTOVER_HOUR ;
+  // avant cette heure, on reste sur la date qui était déjà affichée la veille.
+  function nextReassortDate() {
+    var now = new Date();
+    var refIso = now.getHours() < DAILY_CUTOVER_HOUR ? addDays(todayISO(), -1) : todayISO();
+    var dow = dateFromISO(refIso).getDay(); // 0 = dimanche … 5 = vendredi, 6 = samedi
+    var add = dow === 5 ? 3 : 1;
+    return addDays(refIso, add);
+  }
+
+  function debounce(fn, ms) { var t = null; return function () { clearTimeout(t); var a = arguments, c = this; t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
+
+  // ---------------------------------------------------------------------
+  // DB
+  // ---------------------------------------------------------------------
+  var db = null;
+  var dbUnavailable = false;
+  var dbReady = (async function () {
+    // Remplace ici l'ancienne capacité "db" des artefacts Claude par une vraie base Firestore.
+    // On utilise le SDK Firebase v8 "compat" : son API (doc().get/set/update/onSnapshot,
+    // collection().where().onSnapshot, snap.exists, snap.data()) est celle que tout le reste de
+    // ce fichier appelle déjà, donc aucun autre changement n'est nécessaire ailleurs.
+    try {
+      if (typeof firebase === "undefined") throw new Error("SDK Firebase non chargé (vérifiez les balises <script> en haut du fichier / la connexion réseau).");
+      if (!firebaseConfig || String(firebaseConfig.apiKey || "").indexOf("REMPLACER") !== -1) {
+        throw new Error("firebaseConfig non configuré — remplacez les valeurs en haut du <script> par celles de votre projet Firebase.");
+      }
+      firebase.initializeApp(firebaseConfig);
+      // Authentification anonyme : couche d'accès minimale exigée par les règles Firestore
+      // (voir les instructions de déploiement) — comme les mots de passe internes de l'appli,
+      // ce n'est pas un verrou technique fort, seulement un filtre contre l'accès direct à l'API
+      // par quelqu'un qui n'a jamais ouvert la page.
+      await firebase.auth().signInAnonymously();
+      db = firebase.firestore();
+      return db;
+    } catch (e) {
+      console.error("Connexion Firebase impossible :", e);
+      db = null;
+      dbUnavailable = true;
+      return null;
+    }
+  })();
+
+  function entryDocId(date, siteId) { return date + "_" + siteId; }
+
+  // ---------------------------------------------------------------------
+  // Journal des modifications — un historique léger de qui (boutique/admin,
+  // pas de compte par personne) a changé quoi et quand, sur toute l'appli.
+  // ---------------------------------------------------------------------
+  var JOURNAL_PATH = "journal";
+  function logJournal(text, site) {
+    if (!db) return;
+    var entry = {
+      ts: new Date().toISOString(),
+      role: (typeof session !== "undefined" && session && session.role) || "?",
+      site: site || null,
+      text: text,
+    };
+    var id = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    try { db.doc(JOURNAL_PATH + "/" + id).set(entry).catch(function () {}); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------------
+  var tabBoutique = document.getElementById("tabBoutique");
+  var tabReassort = document.getElementById("tabReassort");
+  var tabComments = document.getElementById("tabComments");
+  var tabProduction = document.getElementById("tabProduction");
+  var tabMenu = document.getElementById("tabMenu");
+  var tabParametres = document.getElementById("tabParametres");
+  var viewBoutique = document.getElementById("viewBoutique");
+  var viewReassort = document.getElementById("viewReassort");
+  var viewComments = document.getElementById("viewComments");
+  var viewProduction = document.getElementById("viewProduction");
+  var viewMenu = document.getElementById("viewMenu");
+  var viewParametres = document.getElementById("viewParametres");
+  var currentView = "boutique";
+
+  function showView(name) {
+    currentView = name;
+    viewBoutique.style.display = name === "boutique" ? "" : "none";
+    viewReassort.style.display = name === "reassort" ? "" : "none";
+    viewComments.style.display = name === "comments" ? "" : "none";
+    viewProduction.style.display = name === "production" ? "" : "none";
+    viewMenu.style.display = name === "menu" ? "" : "none";
+    viewParametres.style.display = name === "parametres" ? "" : "none";
+    tabBoutique.classList.toggle("active", name === "boutique");
+    tabReassort.classList.toggle("active", name === "reassort");
+    tabComments.classList.toggle("active", name === "comments");
+    tabProduction.classList.toggle("active", name === "production");
+    tabMenu.classList.toggle("active", name === "menu");
+    tabParametres.classList.toggle("active", name === "parametres");
+    tabBoutique.setAttribute("aria-selected", String(name === "boutique"));
+    tabReassort.setAttribute("aria-selected", String(name === "reassort"));
+    tabComments.setAttribute("aria-selected", String(name === "comments"));
+    tabProduction.setAttribute("aria-selected", String(name === "production"));
+    tabMenu.setAttribute("aria-selected", String(name === "menu"));
+    tabParametres.setAttribute("aria-selected", String(name === "parametres"));
+    try { localStorage.setItem("foud_view", name); } catch (e) {}
+    if (name === "reassort") refreshReassortMatrix();
+    if (name === "comments") refreshCommentsRecap();
+    if (name === "production") refreshProductionSubscriptions();
+    if (name === "menu") buildMenuView();
+    if (name === "parametres") buildParametresView();
+    updatePrintHeader();
+  }
+  tabBoutique.addEventListener("click", function () { showView("boutique"); });
+  tabReassort.addEventListener("click", function () { showView("reassort"); });
+  tabComments.addEventListener("click", function () { showView("comments"); });
+  tabProduction.addEventListener("click", function () { showView("production"); });
+  tabMenu.addEventListener("click", function () { showView("menu"); });
+  tabParametres.addEventListener("click", function () { showView("parametres"); });
+
+  // ---------------------------------------------------------------------
+  // Impression — un en-tête texte adapté à l'onglet affiché, imprimé en haut
+  // de chaque page ; déclenché par le bouton "Imprimer" ou Ctrl/Cmd+P.
+  // ---------------------------------------------------------------------
+  var printHeaderEl = document.getElementById("printHeader");
+  var printBtn = document.getElementById("printBtn");
+
+  function siteLabel(id) {
+    var s = SITES.filter(function (x) { return x.id === id; })[0];
+    return s ? s.label : id;
+  }
+
+  function updatePrintHeader() {
+    var stamp = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) +
+      " à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    var title = "FOUD - stocks et production", meta = "";
+    if (currentView === "boutique") {
+      title += " — " + siteLabel(siteSelect.value);
+      meta = "Stock&nbsp;: " + stockColumnDates.map(shortLabel).join(", ") +
+        " · Réassort &amp; commentaires du " + shortLabel(dateInputR.value);
+    } else if (currentView === "reassort") {
+      title += " — Réassort, toutes boutiques";
+      meta = "Date&nbsp;: " + shortLabel(dateInputRZ.value);
+    } else if (currentView === "comments") {
+      title += " — Commentaires, récap par boutique";
+      meta = "Notes des " + COMMENTS_RECAP_DAYS + " derniers jours";
+    } else if (currentView === "production") {
+      title += " — Production";
+      meta = "Date de production&nbsp;: " + shortLabel(dateInputP.value);
+    } else if (currentView === "menu") {
+      title += " — Menu";
+      meta = "Catalogue produits";
+    } else if (currentView === "parametres") {
+      title += " — Paramètres";
+      meta = "Accès, boutiques, managers";
+    }
+    if (printHeaderEl) {
+      printHeaderEl.innerHTML = "<h1>" + title + "</h1><div class=\"meta\">" + meta + " · imprimé le " + stamp + "</div>";
+    }
+  }
+
+  // window.print() est parfois bloqué silencieusement par le bac à sable de la page qui héberge
+  // cet artifact (aucune erreur JS, la fenêtre d'impression ne s'ouvre juste pas). On ne peut pas
+  // détecter cet échec depuis le script, donc on affiche systématiquement le raccourci clavier
+  // manuel juste après le clic : il fonctionne toujours, lui, car ce n'est pas un appel script.
+  var printHint = document.getElementById("printHint");
+  var printHintTimer = null;
+  if (printBtn) printBtn.addEventListener("click", function () {
+    updatePrintHeader();
+    window.print();
+    if (printHint) {
+      printHint.textContent = "Rien ne s'ouvre ? Utilisez Ctrl+P (Cmd+P sur Mac).";
+      printHint.style.display = "";
+      clearTimeout(printHintTimer);
+      printHintTimer = setTimeout(function () { printHint.style.display = "none"; }, 7000);
+    }
+  });
+  window.addEventListener("beforeprint", updatePrintHeader);
+
+  // ---------------------------------------------------------------------
+  // Journal — panneau affichant l'historique (300 dernières actions)
+  // ---------------------------------------------------------------------
+  var journalBtn = document.getElementById("journalBtn");
+  var journalOverlay = document.getElementById("journalOverlay");
+  var journalCloseBtn = document.getElementById("journalCloseBtn");
+  var journalList = document.getElementById("journalList");
+  var journalUnsub = null;
+  var JOURNAL_MAX_ROWS = 300;
+
+  function renderJournal(rows) {
+    journalList.innerHTML = "";
+    if (!rows.length) { journalList.innerHTML = "<p class=\"comment-empty\">Aucune action enregistrée pour l'instant.</p>"; return; }
+    rows.slice(0, JOURNAL_MAX_ROWS).forEach(function (r) {
+      var row = document.createElement("div"); row.className = "journal-row";
+      var time = document.createElement("span"); time.className = "j-time";
+      var d = new Date(r.ts);
+      time.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      var role = document.createElement("span"); role.className = "j-role";
+      role.textContent = r.site ? siteLabel(r.site) : (r.role === "admin" ? "Admin" : r.role === "boutique" ? "Manager" : r.role === "cuisine" ? "Cuisine" : "?");
+      var text = document.createElement("span"); text.className = "j-text"; text.textContent = r.text || "";
+      row.appendChild(time); row.appendChild(role); row.appendChild(text);
+      journalList.appendChild(row);
+    });
+  }
+
+  async function openJournal() {
+    journalOverlay.style.display = "flex";
+    journalList.innerHTML = "<p class=\"comment-empty\">Chargement…</p>";
+    await dbReady;
+    if (!db) { journalList.innerHTML = "<p class=\"comment-empty\">Base indisponible dans cette vue.</p>"; return; }
+    if (journalUnsub) { journalUnsub(); journalUnsub = null; }
+    journalUnsub = db.collection(JOURNAL_PATH).onSnapshot(function (snap) {
+      var rows = snap.docs.map(function (d) { return d.data(); });
+      rows.sort(function (a, b) { return new Date(b.ts) - new Date(a.ts); });
+      renderJournal(rows);
+    }, function () { journalList.innerHTML = "<p class=\"comment-empty\">Connexion perdue.</p>"; });
+  }
+  function closeJournal() {
+    journalOverlay.style.display = "none";
+    if (journalUnsub) { journalUnsub(); journalUnsub = null; }
+  }
+  if (journalBtn) journalBtn.addEventListener("click", openJournal);
+  if (journalCloseBtn) journalCloseBtn.addEventListener("click", closeJournal);
+  if (journalOverlay) journalOverlay.addEventListener("click", function (e) { if (e.target === journalOverlay) closeJournal(); });
+
+  // =======================================================================
+  // ACCÈS — connexion admin (identifiant + mot de passe) / boutique (mot de passe),
+  // permissions choisies par l'admin. Amorti côté client : voir la note dans le
+  // panneau Accès — ce n'est pas une vraie barrière de sécurité.
+  // =======================================================================
+  var SETTINGS_PATH = "settings/access";
+  var DEFAULT_ADMIN_ID = "admin";
+  var DEFAULT_ADMIN_PASSWORD = "foud2026";
+  var DEFAULT_CUISINE_PASSWORD = "foud2026";
+  var DEFAULT_PERMISSIONS = { editStock: true, editReassort: true, viewReassortMatrix: true, viewProduction: false, viewComments: true };
+
+  var SESSION_KEY = "foud_session";
+  function loadSession() { try { var raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+  function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
+  function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
+  var session = loadSession();
+
+  async function sha256Hex(text) {
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text || ""));
+    return Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+
+  var authGate = document.getElementById("authGate");
+  var roleTabBoutique = document.getElementById("roleTabBoutique");
+  var roleTabCuisine = document.getElementById("roleTabCuisine");
+  var roleTabAdmin = document.getElementById("roleTabAdmin");
+  var boutiqueLoginForm = document.getElementById("boutiqueLoginForm");
+  var cuisineLoginForm = document.getElementById("cuisineLoginForm");
+  var adminLoginForm = document.getElementById("adminLoginForm");
+  var managerEmailInput = document.getElementById("managerEmailInput");
+  var managerPasswordInput = document.getElementById("managerPasswordInput");
+  var cuisinePasswordInput = document.getElementById("cuisinePasswordInput");
+  var adminIdInput = document.getElementById("adminIdInput");
+  var adminPasswordInput = document.getElementById("adminPasswordInput");
+  var authError = document.getElementById("authError");
+  var authLoadingHint = document.getElementById("authLoadingHint");
+  var rolePill = document.getElementById("rolePill");
+  var logoutBtn = document.getElementById("logoutBtn");
+
+  if (session && session.role) { authGate.style.display = "none"; }
+
+  var roleTabs = [
+    { tab: roleTabBoutique, form: boutiqueLoginForm },
+    { tab: roleTabCuisine, form: cuisineLoginForm },
+    { tab: roleTabAdmin, form: adminLoginForm }
+  ];
+  function activateRoleTab(active) {
+    roleTabs.forEach(function (t) {
+      t.tab.classList.toggle("active", t === active);
+      t.form.style.display = t === active ? "" : "none";
+    });
+    authError.textContent = "";
+  }
+  roleTabs.forEach(function (t) { t.tab.addEventListener("click", function () { activateRoleTab(t); }); });
+
+  boutiqueLoginForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (dbUnavailable) { authError.textContent = "Connexion à la base de données impossible. Rechargez la page."; return; }
+    if (!managersLoadedOnce) { authError.textContent = "Chargement en cours, réessayez."; return; }
+    var email = managerEmailInput.value.trim().toLowerCase();
+    var hash = await sha256Hex(managerPasswordInput.value);
+    var mgr = MANAGERS.filter(function (m) { return (m.email || "").toLowerCase() === email; })[0];
+    if (mgr && hash === mgr.passwordHash) {
+      session = { role: "boutique", site: mgr.siteId, managerEmail: mgr.email }; saveSession(session);
+      authError.textContent = ""; managerEmailInput.value = ""; managerPasswordInput.value = "";
+      authGate.style.display = "none"; applyRoleGating();
+      // Le manager démarre sur la boutique qui lui a été affectée par l'admin, mais le sélecteur
+      // n'est plus verrouillé ensuite (voir buildSiteSelect()) : il peut librement en changer.
+      if (mgr.siteId && SITES.some(function (s) { return s.id === mgr.siteId; }) && siteSelect.value !== mgr.siteId) {
+        siteSelect.value = mgr.siteId;
+        siteSelect.dispatchEvent(new Event("change"));
+      }
+    } else { authError.textContent = "Email ou mot de passe incorrect."; }
+  });
+
+  cuisineLoginForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (dbUnavailable) { authError.textContent = "Connexion à la base de données impossible. Rechargez la page."; return; }
+    if (!accessSettings) { authError.textContent = "Chargement en cours, réessayez."; return; }
+    var hash = await sha256Hex(cuisinePasswordInput.value);
+    if (accessSettings.cuisineHash && hash === accessSettings.cuisineHash) {
+      session = { role: "cuisine" }; saveSession(session);
+      authError.textContent = ""; cuisinePasswordInput.value = "";
+      authGate.style.display = "none"; applyRoleGating();
+    } else { authError.textContent = "Mot de passe incorrect."; }
+  });
+
+  adminLoginForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (dbUnavailable) { authError.textContent = "Connexion à la base de données impossible. Rechargez la page."; return; }
+    if (!accessSettings) { authError.textContent = "Chargement en cours, réessayez."; return; }
+    var hash = await sha256Hex(adminPasswordInput.value);
+    if (adminIdInput.value.trim() === accessSettings.adminId && hash === accessSettings.adminHash) {
+      session = { role: "admin" }; saveSession(session);
+      authError.textContent = ""; adminPasswordInput.value = "";
+      authGate.style.display = "none"; applyRoleGating();
+    } else { authError.textContent = "Identifiant ou mot de passe incorrect."; }
+  });
+
+  logoutBtn.addEventListener("click", function () { session = null; clearSession(); authGate.style.display = "flex"; });
+
+  var accessSettings = null;
+  var accessSettingsLoadedOnce = false;
+
+  // Comptes manager — un manager se connecte avec email + mot de passe et est affecté à UNE
+  // boutique par l'admin (panneau "Managers" de Paramètres) ; sa session verrouille alors le
+  // sélecteur Boutique sur cette seule boutique (voir buildSiteSelect()).
+  var MANAGERS_PATH = "settings/managers";
+  var MANAGERS = [];
+  var managersLoadedOnce = false;
+
+  function applyRoleGating() {
+    if (!session) return;
+    var prevSite = siteSelect.value;
+    buildSiteSelect();
+    if (siteSelect.value !== prevSite) { onSiteChangedForStockDates(); subscribeStockWeek(); subscribeReassort(); }
+    var perms = (accessSettings && accessSettings.permissions) || DEFAULT_PERMISSIONS;
+    var isAdmin = session.role === "admin";
+    var isCuisine = session.role === "cuisine";
+    rolePill.textContent = isAdmin ? "Admin" : isCuisine ? "Cuisine" : "Manager";
+
+    // La cuisine n'a accès qu'à l'onglet Production — tout le reste lui est masqué, quelles que
+    // soient les permissions boutique configurées par l'admin (celles-ci ne concernent que les managers).
+    tabBoutique.style.display = isCuisine ? "none" : "";
+    tabReassort.style.display = !isCuisine && (isAdmin || perms.viewReassortMatrix) ? "" : "none";
+    tabComments.style.display = !isCuisine && (isAdmin || perms.viewComments) ? "" : "none";
+    tabProduction.style.display = (isAdmin || isCuisine || perms.viewProduction) ? "" : "none";
+    tabMenu.style.display = isAdmin ? "" : "none";
+    tabParametres.style.display = isAdmin ? "" : "none";
+    if (journalBtn) journalBtn.style.display = isAdmin ? "" : "none";
+
+    if ((currentView === "boutique" && tabBoutique.style.display === "none") ||
+        (currentView === "reassort" && tabReassort.style.display === "none") ||
+        (currentView === "comments" && tabComments.style.display === "none") ||
+        (currentView === "production" && tabProduction.style.display === "none") ||
+        (currentView === "menu" && tabMenu.style.display === "none") ||
+        (currentView === "parametres" && tabParametres.style.display === "none")) {
+      showView(isCuisine ? "production" : "boutique");
+    }
+
+    var canEditStock = !isCuisine && (isAdmin || !!perms.editStock);
+    var canEditReassort = !isCuisine && (isAdmin || !!perms.editReassort);
+    stockInputsByCol.forEach(function (colMap) {
+      Object.keys(colMap).forEach(function (pid) { colMap[pid].disabled = !canEditStock; });
+    });
+    // Réassort/BOX restent verrouillés pour un produit désactivé dans le catalogue, même avec la permission.
+    Object.keys(reassortInputs).forEach(function (pid) { reassortInputs[pid].disabled = !canEditReassort || stockGridItemActive[pid] === false; });
+    Object.keys(boxInputs).forEach(function (pid) { boxInputs[pid].disabled = !canEditReassort || stockGridItemActive[pid] === false; });
+  }
+
+  function maybeFinishAuthLoading() {
+    if (!accessSettingsLoadedOnce || !managersLoadedOnce) return;
+    if (dbUnavailable) {
+      authLoadingHint.textContent = "Connexion à la base de données impossible. Rechargez la page.";
+      authLoadingHint.style.display = "";
+      return;
+    }
+    authLoadingHint.style.display = "none";
+    if (session && session.role) applyRoleGating();
+  }
+
+  (async function bootAccessSettings() {
+    await dbReady;
+    if (!db) {
+      accessSettings = { adminId: DEFAULT_ADMIN_ID, adminHash: null, cuisineHash: null, permissions: DEFAULT_PERMISSIONS };
+      dbUnavailable = true;
+      accessSettingsLoadedOnce = true; maybeFinishAuthLoading(); return;
+    }
+    var ref = db.doc(SETTINGS_PATH);
+    ref.onSnapshot(async function (snap) {
+      if (snap.exists && snap.data().adminHash) {
+        var data = snap.data();
+        var cuisineHash = data.cuisineHash;
+        if (!cuisineHash) {
+          // Bascule depuis une version antérieure sans accès cuisine : on amorce un mot de passe par défaut.
+          cuisineHash = await sha256Hex(DEFAULT_CUISINE_PASSWORD);
+          ref.update({ cuisineHash: cuisineHash }).catch(function () {});
+        }
+        accessSettings = { adminId: data.adminId || DEFAULT_ADMIN_ID, adminHash: data.adminHash, cuisineHash: cuisineHash, permissions: Object.assign({}, DEFAULT_PERMISSIONS, data.permissions || {}) };
+      } else {
+        var adminHash = await sha256Hex(DEFAULT_ADMIN_PASSWORD);
+        var seedCuisineHash = await sha256Hex(DEFAULT_CUISINE_PASSWORD);
+        var seed = { adminId: DEFAULT_ADMIN_ID, adminHash: adminHash, cuisineHash: seedCuisineHash, permissions: DEFAULT_PERMISSIONS, updatedAt: new Date().toISOString() };
+        ref.set(seed).catch(function () {});
+        accessSettings = seed;
+      }
+      var first = !accessSettingsLoadedOnce;
+      accessSettingsLoadedOnce = true;
+      if (first) maybeFinishAuthLoading(); else applyRoleGating();
+      if (currentView === "parametres") buildParametresView();
+    }, function () { authLoadingHint.textContent = "Connexion à la base impossible."; });
+  })();
+
+  async function saveAccessSettings(patch) {
+    await dbReady;
+    if (!db) return;
+    var merged = Object.assign({}, accessSettings, patch, { updatedAt: new Date().toISOString() });
+    accessSettings = merged;
+    applyRoleGating();
+    try { await db.doc(SETTINGS_PATH).set(merged); } catch (e) {}
+  }
+
+  async function saveManagers() {
+    await dbReady;
+    if (!db) return;
+    try { await db.doc(MANAGERS_PATH).set({ list: MANAGERS, updatedAt: new Date().toISOString() }); } catch (e) {}
+  }
+
+  (async function bootManagers() {
+    await dbReady;
+    if (!db) { dbUnavailable = true; managersLoadedOnce = true; maybeFinishAuthLoading(); return; }
+    var ref = db.doc(MANAGERS_PATH);
+    ref.onSnapshot(function (snap) {
+      MANAGERS = deepClone((snap.exists && snap.data().list) || []);
+      var first = !managersLoadedOnce;
+      managersLoadedOnce = true;
+      if (first) maybeFinishAuthLoading(); else if (session && session.role) applyRoleGating();
+      if (currentView === "parametres") buildParametresView();
+    }, function () { managersLoadedOnce = true; maybeFinishAuthLoading(); });
+  })();
+
+  function buildAccessPanel(container) {
+    var card = document.createElement("div"); card.className = "cat access-panel-card";
+    var head = document.createElement("div"); head.className = "cat-head";
+    head.innerHTML = "<h2>Accès</h2><span class=\"count\">admin &amp; boutique</span>";
+    card.appendChild(head);
+
+    var permsWrap = document.createElement("div"); permsWrap.className = "access-grid";
+    var perms = (accessSettings && accessSettings.permissions) || DEFAULT_PERMISSIONS;
+    var permDefs = [
+      { key: "editStock", label: "Modifier le Stock", sub: "onglet Boutique, section Stock" },
+      { key: "editReassort", label: "Modifier le Réassort", sub: "onglet Boutique, section Réassort demandé" },
+      { key: "viewReassortMatrix", label: "Voir l'onglet Réassort", sub: "vue consolidée des 10 boutiques" },
+      { key: "viewComments", label: "Voir l'onglet Commentaires", sub: "récap des notes de toutes les boutiques" },
+      { key: "viewProduction", label: "Voir l'onglet Production", sub: "planification centrale" }
+    ];
+    permDefs.forEach(function (def) {
+      var row = document.createElement("div"); row.className = "access-row";
+      var lbl = document.createElement("span"); lbl.className = "lbl";
+      lbl.innerHTML = def.label + "<span class=\"sub\">" + def.sub + "</span>";
+      row.appendChild(lbl);
+      var on = !!perms[def.key];
+      var toggle = document.createElement("button");
+      toggle.type = "button"; toggle.className = "toggle-pill " + (on ? "on" : "off"); toggle.textContent = on ? "Autorisé" : "Bloqué";
+      toggle.addEventListener("click", function () {
+        var newPerms = Object.assign({}, (accessSettings && accessSettings.permissions) || DEFAULT_PERMISSIONS);
+        newPerms[def.key] = !on;
+        logJournal("Permission « " + def.label + " » " + (!on ? "autorisée" : "bloquée"));
+        saveAccessSettings({ permissions: newPerms });
+        buildMenuView();
+      });
+      row.appendChild(toggle);
+      permsWrap.appendChild(row);
+    });
+    card.appendChild(permsWrap);
+
+    var fields = document.createElement("div"); fields.className = "access-fields";
+    function field(labelText, id, type, placeholder, fullWidth) {
+      var wrap = document.createElement("div"); if (fullWidth) wrap.className = "field-full";
+      var lbl = document.createElement("label"); lbl.textContent = labelText; lbl.setAttribute("for", id);
+      var inp = document.createElement("input"); inp.type = type; inp.id = id; if (placeholder) inp.placeholder = placeholder;
+      wrap.appendChild(lbl); wrap.appendChild(inp); fields.appendChild(wrap);
+      return inp;
+    }
+    var idInput = field("Identifiant admin", "accessAdminId", "text", "", true);
+    idInput.value = (accessSettings && accessSettings.adminId) || DEFAULT_ADMIN_ID;
+    var adminPwInput = field("Nouveau mot de passe admin", "accessAdminPw", "password", "laisser vide pour ne pas changer");
+    var cuisinePwInput = field("Nouveau mot de passe cuisine", "accessCuisinePw", "password", "laisser vide pour ne pas changer");
+    card.appendChild(fields);
+
+    var saveRow = document.createElement("div"); saveRow.style.cssText = "display:flex; align-items:center; gap:10px; padding:0 14px 14px;";
+    var saveBtn = document.createElement("button"); saveBtn.className = "btn-primary"; saveBtn.type = "button"; saveBtn.textContent = "Enregistrer les accès";
+    var msg = document.createElement("span"); msg.className = "hint";
+    saveBtn.addEventListener("click", async function () {
+      var patch = { adminId: idInput.value.trim() || DEFAULT_ADMIN_ID };
+      var changedPw = [];
+      if (adminPwInput.value) { patch.adminHash = await sha256Hex(adminPwInput.value); changedPw.push("admin"); }
+      if (cuisinePwInput.value) { patch.cuisineHash = await sha256Hex(cuisinePwInput.value); changedPw.push("cuisine"); }
+      await saveAccessSettings(patch);
+      logJournal("Identifiants d'accès modifiés" + (changedPw.length ? " (mot de passe " + changedPw.join(" et ") + " changé)" : ""));
+      adminPwInput.value = ""; cuisinePwInput.value = "";
+      msg.textContent = "Enregistré.";
+      setTimeout(function () { msg.textContent = ""; }, 2500);
+    });
+    saveRow.appendChild(saveBtn); saveRow.appendChild(msg);
+    card.appendChild(saveRow);
+
+    var note = document.createElement("p"); note.className = "access-note";
+    note.textContent = "Le mot de passe cuisine donne un accès partagé limité au seul onglet Production (tout le reste — Boutique, Réassort, Commentaires, Menu, Paramètres — lui est masqué). Ces mots de passe filtrent l'accès dans l'application, ce n'est pas un verrou technique : toute personne de l'organisation ayant le lien pourrait en théorie le contourner. Pour un accès admin réellement protégé, ajoutez la personne comme éditrice/éditeur de cet artifact depuis son menu de partage.";
+    card.appendChild(note);
+
+    var resetHead = document.createElement("div"); resetHead.className = "cat-head";
+    resetHead.innerHTML = "<h2>Reset automatique</h2><span class=\"count\">lun-ven, 10h</span>";
+    card.appendChild(resetHead);
+    var resetRow = document.createElement("div"); resetRow.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 14px;";
+    var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "btn-primary"; resetBtn.style.background = "var(--critical)";
+    resetBtn.textContent = "Forcer le reset maintenant";
+    var resetMsg = document.createElement("span"); resetMsg.className = "hint";
+    // Pas de minuteur (même raison que pour les boutons 🗑) : l'état "confirmer" reste tant qu'on
+    // ne clique pas ailleurs, pour ne jamais le rater si le 2e clic arrive après plus de 3 secondes.
+    var resetConfirming = false;
+    function resetCancelIfOutside(e) { if (e.target !== resetBtn) resetDisarm(); }
+    function resetArm() {
+      resetConfirming = true; resetBtn.textContent = "Confirmer ? (remet tout à 0)";
+      document.addEventListener("click", resetCancelIfOutside, true);
+    }
+    function resetDisarm() {
+      resetConfirming = false; resetBtn.textContent = "Forcer le reset maintenant";
+      document.removeEventListener("click", resetCancelIfOutside, true);
+    }
+    resetBtn.addEventListener("click", async function () {
+      if (!resetConfirming) { resetArm(); return; }
+      resetDisarm();
+      resetBtn.disabled = true; resetBtn.textContent = "Réinitialisation…";
+      await performDailyReset();
+      try { await db.doc(DAILY_RESET_PATH).set({ lastResetDate: todayISO(), resetAt: new Date().toISOString() }); } catch (e) {}
+      resetBtn.disabled = false; resetBtn.textContent = "Forcer le reset maintenant";
+      resetMsg.textContent = "Fait à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      setTimeout(function () { resetMsg.textContent = ""; }, 4000);
+    });
+    resetRow.appendChild(resetBtn); resetRow.appendChild(resetMsg);
+    card.appendChild(resetRow);
+    var resetNote = document.createElement("p"); resetNote.className = "access-note";
+    resetNote.textContent = "Remet à 0 le stock, le réassort et les commentaires de toutes les boutiques, pour toutes les dates déjà saisies — le même reset que celui qui se déclenche automatiquement chaque jour ouvré à 10h. Pratique pour vérifier que ça marche depuis n'importe quel navigateur, sans attendre l'horaire réel.";
+    card.appendChild(resetNote);
+
+    container.appendChild(card);
+  }
+
+  function buildSitesPanel(container) {
+    var card = document.createElement("div"); card.className = "cat access-panel-card";
+    var head = document.createElement("div"); head.className = "cat-head";
+    head.innerHTML = "<h2>Boutiques</h2><span class=\"count\">" + SITES.length + "</span>";
+    card.appendChild(head);
+
+    SITES.forEach(function (s, idx) {
+      var row = document.createElement("div"); row.className = "menu-item-row";
+      var colorInput = document.createElement("input");
+      colorInput.type = "color"; colorInput.className = "site-color-input";
+      colorInput.title = "Couleur de la boutique";
+      colorInput.value = siteColorOf(s);
+      colorInput.addEventListener("input", function () { s.color = colorInput.value; updateSiteColorDot(); });
+      colorInput.addEventListener("change", function () {
+        s.color = colorInput.value;
+        logJournal("Couleur changée pour « " + s.label + " »");
+        saveSites();
+        updateSiteColorDot();
+      });
+      row.appendChild(colorInput);
+      var nameInput = document.createElement("input");
+      nameInput.type = "text"; nameInput.value = s.label;
+      nameInput.addEventListener("change", function () {
+        var old = s.label; s.label = nameInput.value.trim() || s.label;
+        if (s.label !== old) logJournal("Boutique renommée : « " + old + " » → « " + s.label + " »");
+        saveSites();
+      });
+      row.appendChild(nameInput);
+      var delBtn = makeConfirmButton("🗑", "Supprimer la boutique", function () {
+        logJournal("Boutique supprimée : « " + s.label + " »");
+        SITES.splice(idx, 1);
+        saveSites();
+      });
+      row.appendChild(delBtn);
+      card.appendChild(row);
+    });
+
+    var addRow = document.createElement("div"); addRow.className = "add-row";
+    var addInput = document.createElement("input"); addInput.type = "text"; addInput.placeholder = "Nouvelle boutique";
+    var addBtn = document.createElement("button"); addBtn.textContent = "+ Ajouter";
+    function doAdd() {
+      var name = addInput.value.trim(); if (!name) return;
+      var id = uniqueId(name, SITES.map(function (s) { return s.id; }));
+      SITES.push({ id: id, label: name }); addInput.value = "";
+      logJournal("Boutique ajoutée : « " + name + " »");
+      saveSites();
+    }
+    addBtn.addEventListener("click", doAdd);
+    addInput.addEventListener("keydown", function (e) { if (e.key === "Enter") doAdd(); });
+    addRow.appendChild(addInput); addRow.appendChild(addBtn); card.appendChild(addRow);
+
+    var note = document.createElement("p"); note.className = "access-note";
+    note.textContent = "La couleur sert de repère visuel (sélecteur Boutique, listes « pas encore saisi » en Réassort/Production, colonnes du tableau Réassort). Renommer une boutique ne touche pas son historique (stock, réassort, commentaires, journal) — seul le nom affiché change. Supprimer une boutique la retire des listes (Boutique, Réassort, Production…) mais ne supprime pas ses données déjà enregistrées.";
+    card.appendChild(note);
+
+    container.appendChild(card);
+  }
+
+  function buildManagersPanel(container) {
+    var card = document.createElement("div"); card.className = "cat access-panel-card";
+    var head = document.createElement("div"); head.className = "cat-head";
+    head.innerHTML = "<h2>Managers</h2><span class=\"count\">" + MANAGERS.length + "</span>";
+    card.appendChild(head);
+
+    var alertMsg = document.createElement("p");
+    alertMsg.className = "access-note"; alertMsg.style.color = "var(--critical)"; alertMsg.style.minHeight = "1.2em";
+    function flashAlert(text) {
+      alertMsg.textContent = text;
+      setTimeout(function () { if (alertMsg.textContent === text) alertMsg.textContent = ""; }, 2500);
+    }
+
+    function siteOptionsInto(select, selectedId) {
+      select.innerHTML = "";
+      SITES.forEach(function (s) {
+        var opt = document.createElement("option"); opt.value = s.id; opt.textContent = s.label;
+        select.appendChild(opt);
+      });
+      if (SITES.some(function (s) { return s.id === selectedId; })) select.value = selectedId;
+    }
+
+    MANAGERS.forEach(function (m, idx) {
+      var row = document.createElement("div"); row.className = "menu-item-row"; row.style.flexWrap = "wrap";
+
+      var emailInput = document.createElement("input");
+      emailInput.type = "email"; emailInput.value = m.email; emailInput.style.flex = "1.4"; emailInput.style.minWidth = "160px";
+      emailInput.addEventListener("change", function () {
+        var v = emailInput.value.trim().toLowerCase();
+        if (!v) { emailInput.value = m.email; return; }
+        var dup = MANAGERS.some(function (o) { return o !== m && (o.email || "").toLowerCase() === v; });
+        if (dup) { emailInput.value = m.email; flashAlert("Cet email est déjà utilisé par un autre manager."); return; }
+        var old = m.email; m.email = v; emailInput.value = v;
+        if (v !== old) logJournal("Email manager modifié : « " + old + " » → « " + v + " »");
+        saveManagers();
+      });
+      row.appendChild(emailInput);
+
+      var siteSelectEl = document.createElement("select");
+      siteOptionsInto(siteSelectEl, m.siteId);
+      siteSelectEl.title = "Boutique affectée à ce manager";
+      siteSelectEl.addEventListener("change", function () {
+        var site = SITES.filter(function (s) { return s.id === siteSelectEl.value; })[0];
+        m.siteId = siteSelectEl.value;
+        logJournal("Boutique affectée à " + m.email + " : " + (site ? site.label : m.siteId));
+        saveManagers();
+      });
+      row.appendChild(siteSelectEl);
+
+      var pwInput = document.createElement("input");
+      pwInput.type = "password"; pwInput.placeholder = "nouveau mot de passe"; pwInput.autocomplete = "new-password";
+      pwInput.style.flex = "1"; pwInput.style.minWidth = "140px";
+      row.appendChild(pwInput);
+      var pwBtn = document.createElement("button");
+      pwBtn.type = "button"; pwBtn.className = "textbtn"; pwBtn.textContent = "Changer";
+      pwBtn.addEventListener("click", async function () {
+        if (!pwInput.value) { flashAlert("Saisissez un mot de passe avant de le changer."); return; }
+        m.passwordHash = await sha256Hex(pwInput.value);
+        pwInput.value = "";
+        logJournal("Mot de passe changé pour le manager " + m.email);
+        saveManagers();
+      });
+      row.appendChild(pwBtn);
+
+      var delBtn = makeConfirmButton("🗑", "Supprimer ce manager", function () {
+        logJournal("Manager supprimé : " + m.email);
+        MANAGERS.splice(idx, 1);
+        saveManagers();
+      });
+      row.appendChild(delBtn);
+
+      card.appendChild(row);
+    });
+
+    if (!MANAGERS.length) {
+      var empty = document.createElement("p"); empty.className = "access-note";
+      empty.textContent = "Aucun manager pour l'instant. Ajoutez-en un ci-dessous et affectez-lui une boutique de départ.";
+      card.appendChild(empty);
+    }
+
+    card.appendChild(alertMsg);
+
+    var addRow = document.createElement("div"); addRow.className = "add-row"; addRow.style.flexWrap = "wrap";
+    var addEmail = document.createElement("input");
+    addEmail.type = "email"; addEmail.placeholder = "Email du manager"; addEmail.style.flex = "1.4"; addEmail.style.minWidth = "160px";
+    var addSite = document.createElement("select");
+    siteOptionsInto(addSite, SITES[0] && SITES[0].id);
+    var addPw = document.createElement("input");
+    addPw.type = "password"; addPw.placeholder = "Mot de passe"; addPw.autocomplete = "new-password";
+    addPw.style.flex = "1"; addPw.style.minWidth = "140px";
+    var addBtn = document.createElement("button"); addBtn.textContent = "+ Ajouter";
+    async function doAddManager() {
+      var email = addEmail.value.trim().toLowerCase();
+      var pw = addPw.value;
+      if (!SITES.length) { flashAlert("Créez d'abord une boutique dans le panneau ci-dessus."); return; }
+      if (!email || email.indexOf("@") === -1) { flashAlert("Email invalide."); return; }
+      if (!pw) { flashAlert("Mot de passe requis."); return; }
+      if (MANAGERS.some(function (o) { return (o.email || "").toLowerCase() === email; })) { flashAlert("Cet email est déjà utilisé par un autre manager."); return; }
+      var id = uniqueId(email, MANAGERS.map(function (o) { return o.id; }));
+      var passwordHash = await sha256Hex(pw);
+      var site = SITES.filter(function (s) { return s.id === addSite.value; })[0];
+      MANAGERS.push({ id: id, email: email, passwordHash: passwordHash, siteId: addSite.value });
+      logJournal("Manager ajouté : " + email + (site ? " (" + site.label + ")" : ""));
+      addEmail.value = ""; addPw.value = "";
+      saveManagers();
+    }
+    addBtn.addEventListener("click", doAddManager);
+    addPw.addEventListener("keydown", function (e) { if (e.key === "Enter") doAddManager(); });
+    addEmail.addEventListener("keydown", function (e) { if (e.key === "Enter") doAddManager(); });
+    addRow.appendChild(addEmail); addRow.appendChild(addSite); addRow.appendChild(addPw); addRow.appendChild(addBtn);
+    card.appendChild(addRow);
+
+    var note = document.createElement("p"); note.className = "access-note";
+    note.textContent = "Un manager se connecte avec son email et son mot de passe depuis l'onglet « Boutique » de l'écran de connexion. À la connexion, le sélecteur Boutique se positionne automatiquement sur la boutique affectée ici, mais il reste libre d'en changer ensuite comme n'importe quel autre utilisateur. Comme les autres mots de passe de l'appli, ce n'est pas un verrou technique fort — voir la note du panneau Accès.";
+    card.appendChild(note);
+
+    container.appendChild(card);
+  }
+
+  // =======================================================================
+  // BOUTIQUE — site commun aux deux sections
+  // =======================================================================
+  var siteSelect = document.getElementById("siteSelect");
+  var siteColorDot = document.getElementById("siteColorDot");
+  function updateSiteColorDot() {
+    var s = SITES.filter(function (x) { return x.id === siteSelect.value; })[0];
+    if (siteColorDot) siteColorDot.style.background = siteColorOf(s);
+  }
+  // Section "Commentaires" de l'onglet Boutique : reprend la couleur de la boutique actuellement
+  // sélectionnée (comme le point à côté du sélecteur), et non plus une couleur fixe.
+  var commentsSectionTitle = document.getElementById("commentsSectionTitle");
+  var commentsAddRow = document.getElementById("commentsAddRow");
+  function updateCommentsSectionColor() {
+    var s = SITES.filter(function (x) { return x.id === siteSelect.value; })[0];
+    var color = siteColorOf(s);
+    if (commentsSectionTitle) commentsSectionTitle.style.color = "color-mix(in srgb, " + color + " 70%, var(--ink))";
+    if (commentsAddRow) commentsAddRow.style.background = "color-mix(in srgb, " + color + " 20%, var(--surface-2))";
+  }
+  function buildSiteSelect() {
+    // Un manager (email + mot de passe, affecté à une boutique par l'admin) n'est plus verrouillé
+    // sur cette boutique : il démarre dessus à la connexion (voir le login "Boutique") mais peut
+    // ensuite en choisir une autre librement, comme n'importe quel autre utilisateur.
+    siteSelect.disabled = false;
+    var prev = siteSelect.value;
+    siteSelect.innerHTML = "";
+    SITES.forEach(function (s) {
+      var opt = document.createElement("option"); opt.value = s.id; opt.textContent = s.label; siteSelect.appendChild(opt);
+    });
+    var storedSite = null;
+    try { storedSite = localStorage.getItem("foud_site"); } catch (e) {}
+    var candidate = SITES.some(function (s) { return s.id === prev; }) ? prev
+      : (storedSite && SITES.some(function (s) { return s.id === storedSite; })) ? storedSite
+      : (SITES[0] && SITES[0].id) || "";
+    siteSelect.value = candidate;
+    updateSiteColorDot();
+    updateCommentsSectionColor();
+  }
+  buildSiteSelect();
+  siteSelect.addEventListener("change", function () {
+    try { localStorage.setItem("foud_site", siteSelect.value); } catch (e) {}
+    updateSiteColorDot();
+    updateCommentsSectionColor();
+    onSiteChangedForStockDates();
+    subscribeStockWeek(); subscribeReassort();
+  });
+
+  // ---- Section 1 : Stock — 4 colonnes, chacune sur une date choisie indépendamment ----
+  var catListStock = document.getElementById("catListStock");
+  var stockSaveEl = document.getElementById("stockSaveStatus");
+  var stockSaveText = document.getElementById("stockSaveStatusText");
+
+  function defaultStockColumnDates() { return stockDates(todayISO()); } // 4 jours consécutifs à partir d'aujourd'hui
+  function loadStockColumnDatesBySite() {
+    try {
+      var raw = localStorage.getItem("foud_stock_dates_by_site");
+      if (raw) {
+        var obj = JSON.parse(raw);
+        if (obj && typeof obj === "object") return obj;
+      }
+    } catch (e) {}
+    return {};
+  }
+  function saveStockColumnDatesBySiteToStorage() { try { localStorage.setItem("foud_stock_dates_by_site", JSON.stringify(stockColumnDatesBySite)); } catch (e) {} }
+  function getStockColumnDatesForSite(site) {
+    var arr = stockColumnDatesBySite[site];
+    if (Array.isArray(arr) && arr.length === STOCK_VISIBLE_DAYS) return arr.slice();
+    return defaultStockColumnDates();
+  }
+
+  var stockColumnDatesBySite = loadStockColumnDatesBySite(); // site -> [4 dates], indépendant par boutique
+  var stockColumnDates = getStockColumnDatesForSite(siteSelect.value); // dates actives pour la boutique sélectionnée
+  var stockColDateInputs = [0, 1, 2, 3].map(function (i) { return document.getElementById("stockColDate" + i); });
+  function refreshStockColDateInputs() { stockColDateInputs.forEach(function (inp, i) { inp.value = stockColumnDates[i]; }); }
+  refreshStockColDateInputs();
+  stockColDateInputs.forEach(function (inp, i) {
+    inp.addEventListener("change", function () {
+      if (inp.value) { stockColumnDates[i] = inp.value; } else { inp.value = stockColumnDates[i]; }
+      stockColumnDatesBySite[siteSelect.value] = stockColumnDates.slice();
+      saveStockColumnDatesBySiteToStorage();
+      subscribeStockWeek();
+    });
+  });
+  document.getElementById("resetStockDatesBtn").addEventListener("click", function () {
+    stockColumnDates = defaultStockColumnDates();
+    refreshStockColDateInputs();
+    stockColumnDatesBySite[siteSelect.value] = stockColumnDates.slice();
+    saveStockColumnDatesBySiteToStorage();
+    subscribeStockWeek();
+  });
+  function onSiteChangedForStockDates() {
+    stockColumnDates = getStockColumnDatesForSite(siteSelect.value);
+    refreshStockColDateInputs();
+  }
+
+  var stockDocsByDate = {};      // date -> {items} tel que reçu de la base
+  var stockPending = {};         // date -> { productId: newValue }
+  var stockInputsByCol = stockColumnDates.map(function () { return {}; }); // [colIndex] -> { productId: <input> }
+  var stockTotalCellsByProduct = {};
+  var stockUnsubs = [];
+
+  function setStockStatus(cls, text) { stockSaveEl.className = "savepill " + cls; stockSaveText.textContent = text; }
+
+  function buildStockGrid() {
+    catListStock.innerHTML = "";
+    stockInputsByCol = stockColumnDates.map(function () { return {}; });
+    stockTotalCellsByProduct = {};
+    reassortInputs = {}; reassortHeaderEls = [];
+    boxInputs = {};
+    stockGridItemActive = {};
+
+    catalog.forEach(function (cat) {
+      // On affiche TOUS les produits de la catégorie ici (actifs ET inactifs) : un produit désactivé
+      // dans Menu reste visible en boutique pour pouvoir écouler/compter son stock restant, mais son
+      // Réassort demandé et son BOX sont verrouillés (voir plus bas et applyRoleGating()).
+      var items = cat.items;
+      if (!items.length) return;
+      var card = document.createElement("div");
+      card.className = "cat";
+      var head = document.createElement("div");
+      head.className = catHeadClass(cat);
+      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits</span>";
+      applyCategoryHeadColor(head, cat);
+      card.appendChild(head);
+
+      var scroller = document.createElement("div"); scroller.className = "scrollx";
+      var table = document.createElement("table");
+      var theadHtml = "<thead><tr><th class=\"name-col\">Produit</th>";
+      stockColumnDates.forEach(function (d) { theadHtml += "<th class=\"num\">" + shortLabel(d) + "</th>"; });
+      theadHtml += "<th class=\"num total-col\">Total</th><th class=\"num reassort-col\">Réassort demandé</th><th class=\"num box-col\">BOX</th></tr></thead>";
+      table.innerHTML = theadHtml;
+      var reassortTh = table.querySelector("thead th.reassort-col");
+      reassortHeaderEls.push(reassortTh);
+      var tbody = document.createElement("tbody");
+
+      items.forEach(function (it) {
+        var isActive = it.active !== false;
+        stockGridItemActive[it.id] = isActive;
+        var tr = document.createElement("tr");
+        if (!isActive) tr.className = "row-inactive-product";
+        var tdName = document.createElement("td"); tdName.className = "name"; tdName.title = it.name;
+        tdName.textContent = it.name;
+        if (!isActive) {
+          var badge = document.createElement("span"); badge.className = "toggle-pill off inactive-badge"; badge.textContent = "Inactif";
+          tdName.appendChild(badge);
+        }
+        tr.appendChild(tdName);
+
+        stockColumnDates.forEach(function (d, colIndex) {
+          var td = document.createElement("td"); td.className = "num";
+          var inp = document.createElement("input");
+          inp.type = "number"; inp.min = "0"; inp.className = "qty-input num";
+          inp.addEventListener("input", function () { onStockCellChange(colIndex, it.id, inp); });
+          inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); focusNextRowInput(stockInputsByCol[colIndex], it.id); } });
+          td.appendChild(inp); tr.appendChild(td);
+          stockInputsByCol[colIndex][it.id] = inp;
+        });
+
+        var tdTotal = document.createElement("td"); tdTotal.className = "num total-col"; tdTotal.textContent = "0";
+        tr.appendChild(tdTotal);
+        stockTotalCellsByProduct[it.id] = tdTotal;
+
+        var tdReassort = document.createElement("td"); tdReassort.className = "num reassort-col";
+        var reassortInp = document.createElement("input");
+        reassortInp.type = "number"; reassortInp.min = "0"; reassortInp.className = "qty-input num";
+        reassortInp.addEventListener("input", onReassortChange);
+        reassortInp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); focusNextRowInput(reassortInputs, it.id); } });
+        if (!isActive) reassortInp.title = "Produit inactif dans le catalogue — réassort verrouillé";
+        tdReassort.appendChild(reassortInp); tr.appendChild(tdReassort);
+        reassortInputs[it.id] = reassortInp;
+
+        var tdBox = document.createElement("td"); tdBox.className = "num box-col";
+        var boxInp = document.createElement("input");
+        boxInp.type = "number"; boxInp.min = "0"; boxInp.className = "qty-input num";
+        boxInp.title = isActive ? "Quantité BOX — comptée avec le Réassort dans le besoin de production" : "Produit inactif dans le catalogue — BOX verrouillé";
+        boxInp.addEventListener("input", onReassortChange);
+        boxInp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); focusNextRowInput(boxInputs, it.id); } });
+        tdBox.appendChild(boxInp); tr.appendChild(tdBox);
+        boxInputs[it.id] = boxInp;
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      scroller.appendChild(table);
+      card.appendChild(scroller);
+      catListStock.appendChild(card);
+    });
+    applyRoleGating();
+    updateReassortColumnHeader();
+  }
+
+  function recomputeStockTotals() {
+    allItems().forEach(function (it) {
+      var total = 0;
+      stockInputsByCol.forEach(function (colMap) {
+        var inp = colMap[it.id];
+        if (inp) total += Number(inp.value) || 0;
+      });
+      var cell = stockTotalCellsByProduct[it.id];
+      if (cell) cell.textContent = total;
+    });
+  }
+
+  function onStockCellChange(colIndex, productId, input) {
+    var date = stockColumnDates[colIndex];
+    if (!stockPending[date]) stockPending[date] = {};
+    // null = case vidée par l'utilisateur : doit redevenir vierge, pas retomber à 0 (voir saveStockPending()).
+    stockPending[date][productId] = input.value === "" ? null : (Number(input.value) || 0);
+    recomputeStockTotals();
+    setStockStatus("saving", "Enregistrement…");
+    saveStockPendingDebounced();
+  }
+
+  var saveStockPendingDebounced = debounce(saveStockPending, 600);
+
+  async function saveStockPending() {
+    await dbReady;
+    if (!db) { setStockStatus("", "Hors ligne"); return; }
+    var site = siteSelect.value;
+    var dates = Object.keys(stockPending);
+    for (var i = 0; i < dates.length; i++) {
+      var date = dates[i];
+      var edits = stockPending[date];
+      delete stockPending[date];
+      var baseline = Object.assign({}, (stockDocsByDate[date] && stockDocsByDate[date].items) || {});
+      Object.keys(edits).forEach(function (pid) {
+        var prev = baseline[pid];
+        // On ne fige un réassort/BOX à 0 que s'il existait déjà ; sinon on les omet pour que ces
+        // cases restent vierges tant qu'elles n'ont pas été saisies elles-mêmes (voir applyReassortSnapshot()).
+        // edits[pid] === null : la case Stock a été vidée par l'utilisateur, elle doit redevenir
+        // vierge (on omet "stock"), pas retomber à 0.
+        var next = {};
+        if (edits[pid] !== null) next.stock = edits[pid];
+        if (prev && prev.reassort !== undefined && prev.reassort !== null) next.reassort = prev.reassort;
+        if (prev && prev.box !== undefined && prev.box !== null) next.box = prev.box;
+        if (Object.keys(next).length === 0) delete baseline[pid]; else baseline[pid] = next;
+      });
+      try {
+        await db.doc("entries/" + entryDocId(date, site)).set({ date: date, site: site, items: baseline, updatedAt: new Date().toISOString() });
+        var n = Object.keys(edits).length;
+        logJournal("Stock modifié pour le " + shortLabel(date) + " (" + n + " produit" + (n > 1 ? "s" : "") + ")", site);
+      } catch (e) { setStockStatus("", "Échec de l'enregistrement"); return; }
+    }
+    setStockStatus("saved", "Enregistré à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+  }
+
+  function applyStockSnapshot() {
+    stockColumnDates.forEach(function (d, colIndex) {
+      var items = (stockDocsByDate[d] && stockDocsByDate[d].items) || {};
+      var colMap = stockInputsByCol[colIndex] || {};
+      Object.keys(colMap).forEach(function (pid) {
+        if (stockPending[d] && (pid in stockPending[d])) return; // ne pas écraser une saisie en attente
+        var inp = colMap[pid];
+        if (document.activeElement === inp) return;
+        // Case vierge tant qu'aucune valeur n'a été saisie pour ce produit/cette date (pas de faux "0").
+        var raw = items[pid] ? items[pid].stock : undefined;
+        inp.value = (raw === undefined || raw === null) ? "" : raw;
+      });
+    });
+    recomputeStockTotals();
+  }
+
+  async function subscribeStockWeek() {
+    buildStockGrid();
+    applyReassortSnapshot({ items: reassortBaseline, comments: commentsCache, updatedAt: true }); // réapplique le réassort dans les nouvelles cellules
+    await dbReady;
+    stockUnsubs.forEach(function (u) { if (u) u(); });
+    stockUnsubs = [];
+    stockPending = {};
+    stockDocsByDate = {};
+    if (!db) { setStockStatus("", "Base indisponible dans cette vue"); return; }
+    var site = siteSelect.value;
+    setStockStatus("", "Chargement…");
+    stockColumnDates.forEach(function (date) {
+      var unsub = db.doc("entries/" + entryDocId(date, site)).onSnapshot(function (snap) {
+        stockDocsByDate[date] = snap.exists ? snap.data() : null;
+        applyStockSnapshot();
+        setStockStatus("saved", "À jour");
+      }, function () { setStockStatus("", "Connexion perdue"); });
+      stockUnsubs.push(unsub);
+    });
+  }
+
+  // ---- Section 2 : Réassort demandé (une date à la fois, en colonne dans la grille de stock) ----
+  var dateInputR = document.getElementById("dateInputR");
+  // Le réassort se prépare pour un jour à venir : ni le jour J, ni une date antérieure, ne sont
+  // sélectionnables — le minimum est donc J+1.
+  function reassortMinDate() { return addDays(todayISO(), 1); }
+  dateInputR.value = nextReassortDate();
+  dateInputR.min = reassortMinDate();
+  var reassortSaveEl = document.getElementById("reassortSaveStatus");
+  var reassortSaveText = document.getElementById("reassortSaveStatusText");
+
+  var reassortInputs = {};
+  var boxInputs = {}; // quantités BOX, saisies dans la même grille — comptées dans le besoin de production
+  var stockGridItemActive = {}; // productId -> actif dans le catalogue (Réassort/BOX verrouillés si false)
+  var reassortHeaderEls = [];
+  var reassortUnsub = null;
+  var reassortBaseline = {};
+  var reassortSaveTimer = null;
+  var commentsCache = [];
+  var commentInput = document.getElementById("commentInput");
+  var commentAddBtn = document.getElementById("commentAddBtn");
+  var commentsListEl = document.getElementById("commentsList");
+
+  function setReassortStatus(cls, text) { reassortSaveEl.className = "savepill " + cls; reassortSaveText.textContent = text; }
+
+  function updateReassortColumnHeader() {
+    var label = "Réassort " + shortLabel(dateInputR.value);
+    reassortHeaderEls.forEach(function (th) { if (th) th.textContent = label; });
+  }
+
+  function onReassortChange() {
+    setReassortStatus("saving", "Enregistrement…");
+    clearTimeout(reassortSaveTimer);
+    reassortSaveTimer = setTimeout(saveReassortAndComments, 500);
+  }
+
+  async function saveReassortAndComments(kind) {
+    await dbReady;
+    if (!db) { setReassortStatus("", "Hors ligne"); return; }
+    var site = siteSelect.value, date = dateInputR.value;
+    var merged = Object.assign({}, reassortBaseline);
+    Object.keys(reassortInputs).forEach(function (pid) {
+      var reassortRaw = reassortInputs[pid].value;
+      var boxInp = boxInputs[pid];
+      var boxRaw = boxInp ? boxInp.value : "";
+      // Ne pas créer d'entrée (donc ne pas figer un faux "0") pour un produit qui n'a ni valeur déjà
+      // enregistrée ni valeur saisie à l'instant — il doit rester vierge tant qu'on n'y a pas touché,
+      // même quand on enregistre le réassort/BOX d'un autre produit de la même boutique/date. Pareil
+      // cellule par cellule : remplir le réassort d'un produit ne doit pas figer son BOX à 0 s'il est
+      // resté vierge (et inversement).
+      if (!merged[pid] && reassortRaw === "" && boxRaw === "") return;
+      // Le Stock (saisi séparément, par date, dans la grille du haut) n'est repris ici que s'il
+      // existe déjà — sinon on ne le fige pas à 0 juste parce que le réassort/BOX de ce produit
+      // vient d'être saisi pour la même date.
+      // Réassort/BOX : on prend la valeur actuelle du champ telle quelle — y compris vide — pour
+      // qu'une case vidée par l'utilisateur redevienne vraiment vierge plutôt que de reprendre
+      // l'ancienne valeur enregistrée (ne PAS retomber sur merged[pid] quand le champ est vide :
+      // c'est justement ce qui empêchait un effacement de "prendre").
+      var next = {};
+      if (merged[pid] && merged[pid].stock !== undefined && merged[pid].stock !== null) next.stock = merged[pid].stock;
+      if (reassortRaw !== "") next.reassort = Number(reassortRaw) || 0;
+      if (boxInp && boxRaw !== "") next.box = Number(boxRaw) || 0;
+      if (Object.keys(next).length === 0) delete merged[pid]; else merged[pid] = next;
+    });
+    try {
+      await db.doc("entries/" + entryDocId(date, site)).set({ date: date, site: site, items: merged, comments: commentsCache, updatedAt: new Date().toISOString() });
+      setReassortStatus("saved", "Enregistré à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+      if (kind === "comment") logJournal("Commentaire ajouté pour le " + shortLabel(date), site);
+      else if (kind === "comment-edit") logJournal("Commentaire modifié pour le " + shortLabel(date), site);
+      else if (kind === "comment-delete") logJournal("Commentaire supprimé pour le " + shortLabel(date), site);
+      else logJournal("Réassort demandé / BOX modifiés pour le " + shortLabel(date), site);
+    } catch (e) { setReassortStatus("", "Échec de l'enregistrement"); }
+  }
+
+  var commentEditingId = null;
+
+  function renderComments() {
+    commentsListEl.innerHTML = "";
+    if (!commentsCache.length) { commentsListEl.innerHTML = "<p class=\"comment-empty\">Aucun commentaire pour cette date.</p>"; return; }
+    commentsCache.slice().sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); }).forEach(function (c) {
+      var row = document.createElement("div"); row.className = "comment-row";
+
+      if (c.createdAt === commentEditingId) {
+        var editInput = document.createElement("input");
+        editInput.type = "text"; editInput.className = "comment-edit-input"; editInput.value = c.text;
+        var editMeta = document.createElement("span"); editMeta.className = "comment-meta";
+        var saveBtn = document.createElement("button");
+        saveBtn.className = "ghostbtn"; saveBtn.type = "button"; saveBtn.title = "Enregistrer"; saveBtn.textContent = "✔";
+        var cancelBtn = document.createElement("button");
+        cancelBtn.className = "ghostbtn"; cancelBtn.type = "button"; cancelBtn.title = "Annuler"; cancelBtn.textContent = "✕";
+        function commitEdit() {
+          var v = editInput.value.trim();
+          commentEditingId = null;
+          if (v && v !== c.text) {
+            // c vient d'un instantané figé (frozen) : on ne le mute jamais, on reconstruit le tableau.
+            commentsCache = commentsCache.map(function (x) { return x === c ? { text: v, createdAt: c.createdAt } : x; });
+            renderComments();
+            saveReassortAndComments("comment-edit");
+          } else {
+            renderComments();
+          }
+        }
+        saveBtn.addEventListener("click", commitEdit);
+        cancelBtn.addEventListener("click", function () { commentEditingId = null; renderComments(); });
+        editInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") { e.preventDefault(); commitEdit(); }
+          else if (e.key === "Escape") { commentEditingId = null; renderComments(); }
+        });
+        editMeta.appendChild(saveBtn); editMeta.appendChild(cancelBtn);
+        row.appendChild(editInput); row.appendChild(editMeta);
+        commentsListEl.appendChild(row);
+        editInput.focus(); editInput.select();
+        return;
+      }
+
+      var textSpan = document.createElement("span"); textSpan.className = "comment-text"; textSpan.textContent = c.text;
+      var meta = document.createElement("span"); meta.className = "comment-meta";
+      var timeSpan = document.createElement("span"); timeSpan.className = "comment-time";
+      timeSpan.textContent = new Date(c.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      var editBtn = document.createElement("button");
+      editBtn.className = "ghostbtn"; editBtn.type = "button"; editBtn.title = "Modifier le commentaire"; editBtn.textContent = "✏️";
+      editBtn.addEventListener("click", function () { commentEditingId = c.createdAt; renderComments(); });
+      var delBtn = makeConfirmButton("🗑", "Supprimer le commentaire", function () {
+        commentsCache = commentsCache.filter(function (x) { return x !== c; });
+        renderComments();
+        saveReassortAndComments("comment-delete");
+      });
+      meta.appendChild(timeSpan); meta.appendChild(editBtn); meta.appendChild(delBtn);
+      row.appendChild(textSpan); row.appendChild(meta);
+      commentsListEl.appendChild(row);
+    });
+  }
+
+  async function addComment() {
+    var text = commentInput.value.trim();
+    if (!text) return;
+    commentsCache = commentsCache.concat([{ text: text, createdAt: new Date().toISOString() }]);
+    commentInput.value = "";
+    renderComments();
+    await saveReassortAndComments("comment");
+  }
+  commentAddBtn.addEventListener("click", addComment);
+  commentInput.addEventListener("keydown", function (e) { if (e.key === "Enter") addComment(); });
+
+  function applyReassortSnapshot(data) {
+    reassortBaseline = Object.assign({}, (data && data.items) || {});
+    commentsCache = (data && data.comments) || [];
+    // Case vierge tant qu'aucune valeur n'a été saisie pour ce produit (pas de faux "0").
+    Object.keys(reassortInputs).forEach(function (pid) {
+      var inp = reassortInputs[pid];
+      if (document.activeElement === inp) return;
+      var raw = reassortBaseline[pid] ? reassortBaseline[pid].reassort : undefined;
+      inp.value = (raw === undefined || raw === null) ? "" : raw;
+    });
+    Object.keys(boxInputs).forEach(function (pid) {
+      var inp = boxInputs[pid];
+      if (document.activeElement === inp) return;
+      var raw = reassortBaseline[pid] ? reassortBaseline[pid].box : undefined;
+      inp.value = (raw === undefined || raw === null) ? "" : raw;
+    });
+    renderComments();
+    setReassortStatus("saved", data && data.updatedAt ? "À jour" : "Pas encore saisi");
+  }
+
+  async function subscribeReassort() {
+    updateReassortColumnHeader();
+    await dbReady;
+    if (reassortUnsub) { reassortUnsub(); reassortUnsub = null; }
+    if (!db) { setReassortStatus("", "Base indisponible dans cette vue"); return; }
+    var site = siteSelect.value, date = dateInputR.value;
+    setReassortStatus("", "Chargement…");
+    reassortUnsub = db.doc("entries/" + entryDocId(date, site)).onSnapshot(function (snap) {
+      applyReassortSnapshot(snap.exists ? snap.data() : null);
+    }, function () { setReassortStatus("", "Connexion perdue"); });
+  }
+  dateInputR.addEventListener("change", function () {
+    // Filet de sécurité : l'attribut min bloque déjà le calendrier natif, mais certains navigateurs
+    // laissent taper une date au clavier — on la ramène alors au minimum autorisé (J+1).
+    if (dateInputR.value && dateInputR.value < reassortMinDate()) dateInputR.value = reassortMinDate();
+    subscribeReassort(); syncProductionDate();
+  });
+  document.getElementById("prevDayR").addEventListener("click", function () {
+    var prevDate = addDays(dateInputR.value, -1);
+    if (prevDate < reassortMinDate()) return; // ni le jour J ni une date antérieure ne sont sélectionnables.
+    dateInputR.value = prevDate; subscribeReassort(); syncProductionDate();
+  });
+  document.getElementById("nextDayR").addEventListener("click", function () { dateInputR.value = addDays(dateInputR.value, 1); subscribeReassort(); syncProductionDate(); });
+
+  // =======================================================================
+  // RÉASSORT — matrice de toutes les demandes boutiques, pour une date
+  // =======================================================================
+  var dateInputRZ = document.getElementById("dateInputRZ");
+  dateInputRZ.value = nextReassortDate();
+  var catListReassortMatrix = document.getElementById("catListReassortMatrix");
+  var reassortMatrixSub = document.getElementById("reassortMatrixSub");
+  var reassortMissingBanner = document.getElementById("reassortMissingBanner");
+  var reassortMissingList = document.getElementById("reassortMissingList");
+
+  var rzCellsByProduct = {};   // productId -> { siteId: <td> }
+  var rzTotalCellsByProduct = {};
+  var rzUnsub = null;
+  var rzLastDocs = [];
+
+  function buildReassortMatrixTable() {
+    catListReassortMatrix.innerHTML = "";
+    rzCellsByProduct = {}; rzTotalCellsByProduct = {};
+    catalog.forEach(function (cat) {
+      var items = activeItems(cat);
+      if (!items.length) return;
+      var card = document.createElement("div"); card.className = "cat";
+      var head = document.createElement("div"); head.className = catHeadClass(cat);
+      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits</span>";
+      applyCategoryHeadColor(head, cat);
+      card.appendChild(head);
+
+      var scroller = document.createElement("div"); scroller.className = "scrollx";
+      var table = document.createElement("table");
+      var theadHtml = "<thead><tr><th class=\"name-col\">Produit</th>";
+      SITES.forEach(function (s) { theadHtml += "<th class=\"num\"><span class=\"site-th-dot\" style=\"background:" + siteColorOf(s) + "\"></span>" + s.label.split(" — ")[0] + "</th>"; });
+      theadHtml += "<th class=\"num total-col\">Total</th></tr></thead>";
+      table.innerHTML = theadHtml;
+      var tbody = document.createElement("tbody");
+
+      items.forEach(function (it) {
+        var tr = document.createElement("tr");
+        var tdName = document.createElement("td"); tdName.className = "name"; tdName.title = it.name; tdName.textContent = it.name; tr.appendChild(tdName);
+        rzCellsByProduct[it.id] = {};
+        SITES.forEach(function (s) {
+          var td = document.createElement("td"); td.className = "num num-zero"; td.textContent = "0";
+          tr.appendChild(td);
+          rzCellsByProduct[it.id][s.id] = td;
+        });
+        var tdTotal = document.createElement("td"); tdTotal.className = "num total-col"; tdTotal.textContent = "0";
+        tr.appendChild(tdTotal);
+        rzTotalCellsByProduct[it.id] = tdTotal;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody); scroller.appendChild(table); card.appendChild(scroller);
+      catListReassortMatrix.appendChild(card);
+    });
+  }
+
+  function recomputeReassortMatrix() {
+    var bySite = {}; // siteId -> { productId: reassort + box }
+    var submittedSiteIds = {};
+    rzLastDocs.forEach(function (d) {
+      submittedSiteIds[d.site] = true;
+      var items = d.items || {};
+      bySite[d.site] = {};
+      Object.keys(items).forEach(function (pid) { bySite[d.site][pid] = (Number(items[pid].reassort) || 0) + (Number(items[pid].box) || 0); });
+    });
+
+    allActiveItems().forEach(function (it) {
+      var total = 0;
+      SITES.forEach(function (s) {
+        var cell = rzCellsByProduct[it.id] && rzCellsByProduct[it.id][s.id];
+        if (!cell) return;
+        var v = (bySite[s.id] && bySite[s.id][it.id]) || 0;
+        cell.textContent = v;
+        cell.className = "num " + (v > 0 ? "num-nonzero" : "num-zero");
+        total += v;
+      });
+      var totalCell = rzTotalCellsByProduct[it.id];
+      if (totalCell) totalCell.textContent = total;
+    });
+
+    var submittedCount = Object.keys(submittedSiteIds).length;
+    reassortMatrixSub.textContent = submittedCount + "/" + SITES.length + " boutiques ont transmis un réassort pour cette date";
+    var missing = SITES.filter(function (s) { return !submittedSiteIds[s.id]; });
+    if (missing.length) { reassortMissingBanner.style.display = "flex"; renderSiteChipsInto(reassortMissingList, missing); }
+    else { reassortMissingBanner.style.display = "none"; }
+  }
+
+  async function refreshReassortMatrix() {
+    buildReassortMatrixTable();
+    await dbReady;
+    if (rzUnsub) { rzUnsub(); rzUnsub = null; }
+    rzLastDocs = [];
+    if (!db) { reassortMatrixSub.textContent = "Base indisponible dans cette vue"; return; }
+    var date = dateInputRZ.value;
+    reassortMatrixSub.textContent = "Chargement…";
+    rzUnsub = db.collection("entries").where("date", "==", date).onSnapshot(function (snap) {
+      rzLastDocs = snap.docs.map(function (d) { return d.data(); });
+      recomputeReassortMatrix();
+    }, function () { reassortMatrixSub.textContent = "Connexion perdue"; });
+  }
+  dateInputRZ.addEventListener("change", refreshReassortMatrix);
+  document.getElementById("prevDayRZ").addEventListener("click", function () { dateInputRZ.value = addDays(dateInputRZ.value, -1); refreshReassortMatrix(); });
+  document.getElementById("nextDayRZ").addEventListener("click", function () { dateInputRZ.value = addDays(dateInputRZ.value, 1); refreshReassortMatrix(); });
+
+  // =======================================================================
+  // COMMENTAIRES — récap par boutique (14 derniers jours)
+  // =======================================================================
+  var commentsRecapEl = document.getElementById("commentsRecap");
+  var commentsRecapUnsub = null;
+  var COMMENTS_RECAP_DAYS = 14;
+
+  function buildCommentsRecap(bySite) {
+    commentsRecapEl.innerHTML = "";
+    SITES.forEach(function (s) {
+      var card = document.createElement("div"); card.className = "cat";
+      var head = document.createElement("div"); head.className = "cat-head";
+      var list = (bySite[s.id] || []).slice().sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+      head.innerHTML = "<h2>" + s.label + "</h2><span class=\"count\">" + list.length + " note" + (list.length > 1 ? "s" : "") + "</span>";
+      applySiteHeadColor(head, s);
+      card.appendChild(head);
+      if (!list.length) {
+        var empty = document.createElement("p"); empty.className = "comment-empty"; empty.textContent = "Aucun commentaire récent.";
+        card.appendChild(empty);
+      } else {
+        list.slice(0, 8).forEach(function (c) {
+          var row = document.createElement("div"); row.className = "comment-row";
+          var textSpan = document.createElement("span"); textSpan.className = "comment-text"; textSpan.textContent = c.text;
+          var timeSpan = document.createElement("span"); timeSpan.className = "comment-time";
+          timeSpan.textContent = new Date(c.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+          row.appendChild(textSpan); row.appendChild(timeSpan);
+          card.appendChild(row);
+        });
+      }
+      commentsRecapEl.appendChild(card);
+    });
+  }
+
+  async function refreshCommentsRecap() {
+    commentsRecapEl.innerHTML = "<p class=\"comment-empty\">Chargement…</p>";
+    await dbReady;
+    if (commentsRecapUnsub) { commentsRecapUnsub(); commentsRecapUnsub = null; }
+    if (!db) { commentsRecapEl.innerHTML = "<p class=\"comment-empty\">Base indisponible dans cette vue.</p>"; return; }
+    var startDate = addDays(todayISO(), -(COMMENTS_RECAP_DAYS - 1));
+    commentsRecapUnsub = db.collection("entries").where("date", ">=", startDate).onSnapshot(function (snap) {
+      var bySite = {};
+      snap.docs.forEach(function (d) {
+        var data = d.data();
+        if (!data.comments || !data.comments.length) return;
+        if (!bySite[data.site]) bySite[data.site] = [];
+        bySite[data.site] = bySite[data.site].concat(data.comments);
+      });
+      buildCommentsRecap(bySite);
+    }, function () { commentsRecapEl.innerHTML = "<p class=\"comment-empty\">Connexion perdue.</p>"; });
+  }
+
+  // =======================================================================
+  // PRODUCTION VIEW
+  // =======================================================================
+  // La date de production n'est pas modifiable indépendamment : elle est toujours identique
+  // à la date de Réassort de l'onglet Boutique (dateInputR), voir syncProductionDate() ci-dessous.
+  var dateInputP = document.getElementById("dateInputP");
+  dateInputP.disabled = true;
+  dateInputP.value = dateInputR.value;
+  function syncProductionDate() {
+    if (dateInputP.value === dateInputR.value) return;
+    dateInputP.value = dateInputR.value;
+    refreshProductionSubscriptions();
+  }
+  var catListProduction = document.getElementById("catListProduction");
+  var tileSubmitted = document.getElementById("tileSubmitted");
+  var tileSubmittedSub = document.getElementById("tileSubmittedSub");
+  var tileCritical = document.getElementById("tileCritical");
+  var tileToProduce = document.getElementById("tileToProduce");
+  var tileBox = document.getElementById("tileBox");
+  var missingBanner = document.getElementById("missingBanner");
+  var missingList = document.getElementById("missingList");
+  var prodCatFilterEl = document.getElementById("prodCatFilter");
+  var prodCategoryFilter = "all"; // "all" ou l'id d'une catégorie : filtre le total "Pièces à produire" et les cartes affichées
+
+  function populateProdCatFilter() {
+    var prev = prodCatFilterEl.value || prodCategoryFilter || "all";
+    prodCatFilterEl.innerHTML = "<option value=\"all\">Toutes catégories</option>";
+    catalog.forEach(function (cat) {
+      if (!activeItems(cat).length) return;
+      var opt = document.createElement("option");
+      opt.value = cat.id; opt.textContent = cat.label;
+      prodCatFilterEl.appendChild(opt);
+    });
+    var stillExists = Array.prototype.some.call(prodCatFilterEl.options, function (o) { return o.value === prev; });
+    prodCatFilterEl.value = stillExists ? prev : "all";
+    prodCategoryFilter = prodCatFilterEl.value;
+  }
+  function applyProdCategoryFilter() {
+    Array.prototype.forEach.call(catListProduction.children, function (card) {
+      card.style.display = (prodCategoryFilter === "all" || card.dataset.catId === prodCategoryFilter) ? "" : "none";
+    });
+  }
+  prodCatFilterEl.addEventListener("change", function () {
+    prodCategoryFilter = prodCatFilterEl.value;
+    applyProdCategoryFilter();
+    recomputeProduction();
+  });
+
+  var prodRowRefs = {};
+  var prodUnsubEntries = null;
+  var prodUnsubDoc = null;
+  // Stock disponible cumulable sur 2 colonnes : "J-1" (stockJ1) + "J" (stockJ) — voir recomputeProduction().
+  var prodDocCache = { forecasts: {}, produced: {}, stocksJ1: {}, stocksJ: {}, forecastComments: {} };
+  var prodForecastTimers = {};
+  var prodStockJ1Timers = {};
+  var prodStockJTimers = {};
+  var lastEntriesDocs = [];
+
+  // Pour focusNextRowInput() (navigation clavier Entrée) : reconstruit à la volée, à partir de
+  // prodRowRefs, une table productId -> <input> pour une colonne donnée (Stock disponible ou
+  // Prévision), dans le même ordre que allItems().
+  function prodInputMap(field) {
+    var map = {};
+    Object.keys(prodRowRefs).forEach(function (pid) { map[pid] = prodRowRefs[pid][field]; });
+    return map;
+  }
+
+  function buildProductionTable() {
+    closeCellCommentPopover();
+    catListProduction.innerHTML = ""; prodRowRefs = {};
+    catalog.forEach(function (cat) {
+      var items = activeItems(cat);
+      if (!items.length) return;
+      var card = document.createElement("div"); card.className = "cat"; card.dataset.catId = cat.id;
+      var head = document.createElement("div"); head.className = catHeadClass(cat);
+      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits</span>";
+      applyCategoryHeadColor(head, cat);
+      card.appendChild(head);
+      var scroller = document.createElement("div"); scroller.className = "scrollx";
+      var table = document.createElement("table");
+      table.innerHTML = "<thead><tr>" +
+        "<th class=\"name-col\">Produit</th><th class=\"num\">Stocks J-1</th><th class=\"num\">Stocks J</th><th class=\"num hide-sm\">Réassort demandé</th>" +
+        "<th class=\"num\">Prévision</th><th class=\"num\">À produire</th><th>Statut</th><th style=\"text-align:center\">Fait</th>" +
+        "</tr></thead>";
+      var tbody = document.createElement("tbody");
+      items.forEach(function (it) {
+        var tr = document.createElement("tr");
+        var tdName = document.createElement("td"); tdName.className = "name"; tdName.title = it.name; tdName.textContent = it.name; tr.appendChild(tdName);
+        // Stock disponible cumulable sur 2 colonnes ("J-1" + "J") : voir recomputeProduction().
+        var tdStockJ1 = document.createElement("td"); tdStockJ1.className = "num";
+        var stockInputJ1 = document.createElement("input");
+        stockInputJ1.type = "number"; stockInputJ1.min = "0"; stockInputJ1.className = "prevision-input num";
+        stockInputJ1.title = "Stock disponible J-1 — saisi par la production, indépendant des stocks boutiques, cumulé avec J";
+        stockInputJ1.addEventListener("input", function () { onStockChange(it.id, "stocksJ1", stockInputJ1); });
+        stockInputJ1.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); focusNextRowInput(prodInputMap("stockInputJ1"), it.id); } });
+        tdStockJ1.appendChild(stockInputJ1); tr.appendChild(tdStockJ1);
+        var tdStockJ = document.createElement("td"); tdStockJ.className = "num";
+        var stockInputJ = document.createElement("input");
+        stockInputJ.type = "number"; stockInputJ.min = "0"; stockInputJ.className = "prevision-input num";
+        stockInputJ.title = "Stock disponible J — saisi par la production, indépendant des stocks boutiques, cumulé avec J-1";
+        stockInputJ.addEventListener("input", function () { onStockChange(it.id, "stocksJ", stockInputJ); });
+        stockInputJ.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); focusNextRowInput(prodInputMap("stockInputJ"), it.id); } });
+        tdStockJ.appendChild(stockInputJ); tr.appendChild(tdStockJ);
+        var tdReassort = document.createElement("td"); tdReassort.className = "num hide-sm";
+        tdReassort.title = "Réassort demandé + BOX, cumulés sur toutes les boutiques";
+        tr.appendChild(tdReassort);
+        var tdForecast = document.createElement("td"); tdForecast.className = "num forecast-cell";
+        var forecastInput = document.createElement("input");
+        forecastInput.type = "number"; forecastInput.min = "0"; forecastInput.className = "prevision-input num";
+        forecastInput.addEventListener("input", function () { onForecastChange(it.id, forecastInput); });
+        forecastInput.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); focusNextRowInput(prodInputMap("forecastInput"), it.id); } });
+        tdForecast.appendChild(forecastInput);
+        var forecastCommentBadge = document.createElement("span");
+        forecastCommentBadge.className = "forecast-comment-badge"; forecastCommentBadge.textContent = "!";
+        forecastCommentBadge.style.display = "none";
+        tdForecast.appendChild(forecastCommentBadge);
+        tdForecast.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+          openCellCommentPopover(it.id, e.clientX, e.clientY);
+        });
+        tr.appendChild(tdForecast);
+        var tdProduce = document.createElement("td"); tdProduce.className = "num produce-val"; tr.appendChild(tdProduce);
+        var tdStatus = document.createElement("td"); tr.appendChild(tdStatus);
+        var tdCheck = document.createElement("td"); tdCheck.style.textAlign = "center";
+        var checkBtn = document.createElement("button");
+        checkBtn.className = "check"; checkBtn.type = "button"; checkBtn.setAttribute("aria-label", "Marquer produit");
+        checkBtn.addEventListener("click", function () { toggleProduced(it.id); });
+        tdCheck.appendChild(checkBtn); tr.appendChild(tdCheck);
+        tbody.appendChild(tr);
+        prodRowRefs[it.id] = { rowEl: tr, catId: cat.id, stockInputJ1: stockInputJ1, stockInputJ: stockInputJ, reassortCell: tdReassort, forecastInput: forecastInput, forecastCell: tdForecast, forecastCommentBadge: forecastCommentBadge, produceCell: tdProduce, statusCell: tdStatus, checkBtn: checkBtn };
+      });
+      table.appendChild(tbody); scroller.appendChild(table); card.appendChild(scroller);
+      catListProduction.appendChild(card);
+    });
+    populateProdCatFilter();
+    applyProdCategoryFilter();
+  }
+
+  function onForecastChange(productId, input) {
+    // Case vidée par l'utilisateur : on retire la clé plutôt que de la mettre à 0, pour qu'elle
+    // redevienne vierge (voir recomputeProduction()).
+    if (input.value === "") delete prodDocCache.forecasts[productId];
+    else prodDocCache.forecasts[productId] = Number(input.value) || 0;
+    clearTimeout(prodForecastTimers[productId]);
+    prodForecastTimers[productId] = setTimeout(function () { saveProductionDoc("Prévision modifiée : " + productName(productId)); }, 500);
+  }
+  // field : "stocksJ1" ou "stocksJ" — les deux colonnes de Stock disponible, cumulées entre elles
+  // (voir recomputeProduction()).
+  function onStockChange(productId, field, input) {
+    if (input.value === "") delete prodDocCache[field][productId];
+    else prodDocCache[field][productId] = Number(input.value) || 0;
+    var timers = field === "stocksJ1" ? prodStockJ1Timers : prodStockJTimers;
+    clearTimeout(timers[productId]);
+    var label = field === "stocksJ1" ? "Stock disponible J-1 modifié : " : "Stock disponible J modifié : ";
+    timers[productId] = setTimeout(function () { saveProductionDoc(label + productName(productId)); }, 500);
+  }
+  function toggleProduced(productId) {
+    prodDocCache.produced[productId] = !prodDocCache.produced[productId];
+    saveProductionDoc((prodDocCache.produced[productId] ? "Marqué fait : " : "Marqué non fait : ") + productName(productId));
+  }
+
+  // Commentaire de cellule sur la colonne Prévision (clic droit pour ouvrir/éditer, survol pour
+  // voir l'info-bulle via l'attribut title, pictogramme 📝 affiché quand un commentaire existe).
+  var cellCommentPopover = null;
+  function closeCellCommentPopover() {
+    if (!cellCommentPopover) return;
+    cellCommentPopover.remove();
+    cellCommentPopover = null;
+    document.removeEventListener("mousedown", onDocMouseDownForCellCommentPopover, true);
+  }
+  function onDocMouseDownForCellCommentPopover(e) {
+    if (cellCommentPopover && !cellCommentPopover.contains(e.target)) closeCellCommentPopover();
+  }
+  function openCellCommentPopover(productId, x, y) {
+    closeCellCommentPopover();
+    var pop = document.createElement("div"); pop.className = "cell-comment-popover";
+    var label = document.createElement("div"); label.className = "ccp-label";
+    label.textContent = "Commentaire — " + productName(productId);
+    var textarea = document.createElement("textarea");
+    textarea.value = (prodDocCache.forecastComments && prodDocCache.forecastComments[productId]) || "";
+    textarea.placeholder = "Ajouter un commentaire…";
+    var row = document.createElement("div"); row.className = "ccp-row";
+    var delBtn = document.createElement("button");
+    delBtn.type = "button"; delBtn.className = "ghostbtn"; delBtn.title = "Supprimer le commentaire"; delBtn.textContent = "🗑";
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "button"; saveBtn.className = "btn-primary"; saveBtn.textContent = "Enregistrer";
+    delBtn.addEventListener("click", function () { setForecastComment(productId, ""); closeCellCommentPopover(); });
+    saveBtn.addEventListener("click", function () { setForecastComment(productId, textarea.value.trim()); closeCellCommentPopover(); });
+    textarea.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { closeCellCommentPopover(); }
+      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setForecastComment(productId, textarea.value.trim()); closeCellCommentPopover(); }
+    });
+    row.appendChild(delBtn); row.appendChild(saveBtn);
+    pop.appendChild(label); pop.appendChild(textarea); pop.appendChild(row);
+    document.body.appendChild(pop);
+    var maxLeft = window.innerWidth - pop.offsetWidth - 8;
+    var maxTop = window.innerHeight - pop.offsetHeight - 8;
+    pop.style.left = Math.max(8, Math.min(x, maxLeft)) + "px";
+    pop.style.top = Math.max(8, Math.min(y, maxTop)) + "px";
+    cellCommentPopover = pop;
+    textarea.focus(); textarea.select();
+    setTimeout(function () { document.addEventListener("mousedown", onDocMouseDownForCellCommentPopover, true); }, 0);
+  }
+  function setForecastComment(productId, text) {
+    if (!prodDocCache.forecastComments) prodDocCache.forecastComments = {};
+    if (text) prodDocCache.forecastComments[productId] = text;
+    else delete prodDocCache.forecastComments[productId];
+    updateForecastCommentUI(productId);
+    saveProductionDoc((text ? "Commentaire prévision ajouté/modifié : " : "Commentaire prévision supprimé : ") + productName(productId));
+  }
+  function updateForecastCommentUI(productId) {
+    var refs = prodRowRefs[productId];
+    if (!refs) return;
+    var text = prodDocCache.forecastComments && prodDocCache.forecastComments[productId];
+    if (text) {
+      refs.forecastCommentBadge.title = text;
+      refs.forecastCommentBadge.style.display = "";
+    } else {
+      refs.forecastCommentBadge.removeAttribute("title");
+      refs.forecastCommentBadge.style.display = "none";
+    }
+  }
+  async function saveProductionDoc(journalText) {
+    await dbReady;
+    if (!db) return;
+    var date = dateInputP.value;
+    try {
+      await db.doc("production/" + date).set({ date: date, forecasts: prodDocCache.forecasts, stocksJ1: prodDocCache.stocksJ1, stocksJ: prodDocCache.stocksJ, produced: prodDocCache.produced, forecastComments: prodDocCache.forecastComments, updatedAt: new Date().toISOString() });
+      if (journalText) logJournal(journalText + " (" + shortLabel(date) + ")");
+    } catch (e) {}
+  }
+
+  function recomputeProduction() {
+    var reassortTotals = {}, boxTotals = {};
+    allActiveItems().forEach(function (it) { reassortTotals[it.id] = 0; boxTotals[it.id] = 0; });
+    var submittedSiteIds = {};
+    lastEntriesDocs.forEach(function (d) {
+      submittedSiteIds[d.site] = true;
+      var items = d.items || {};
+      Object.keys(items).forEach(function (pid) {
+        if (!(pid in reassortTotals)) return;
+        reassortTotals[pid] += Number(items[pid].reassort) || 0;
+        boxTotals[pid] += Number(items[pid].box) || 0;
+      });
+    });
+
+    var criticalCount = 0, totalToProduce = 0, totalBox = 0;
+    allActiveItems().forEach(function (it) {
+      var refs = prodRowRefs[it.id];
+      if (!refs) return;
+      var hasStockJ1 = prodDocCache.stocksJ1[it.id] !== undefined && prodDocCache.stocksJ1[it.id] !== null;
+      var hasStockJ = prodDocCache.stocksJ[it.id] !== undefined && prodDocCache.stocksJ[it.id] !== null;
+      var hasForecast = prodDocCache.forecasts[it.id] !== undefined && prodDocCache.forecasts[it.id] !== null;
+      var stockJ1 = hasStockJ1 ? prodDocCache.stocksJ1[it.id] : 0;
+      var stockJ = hasStockJ ? prodDocCache.stocksJ[it.id] : 0;
+      var stock = stockJ1 + stockJ; // Les 2 colonnes de Stock disponible ("J-1" + "J") sont cumulables.
+      var reassort = reassortTotals[it.id] || 0, box = boxTotals[it.id] || 0;
+      var forecast = hasForecast ? prodDocCache.forecasts[it.id] : 0;
+      var demand = reassort + box; // Réassort boutiques + BOX = besoin total, affiché en une seule colonne
+      var toProduce = Math.max(demand, forecast) - stock;
+      if (toProduce < 0) toProduce = 0;
+      // Case vierge tant qu'aucune valeur n'a été saisie pour ce produit (pas de faux "0").
+      if (document.activeElement !== refs.stockInputJ1) refs.stockInputJ1.value = hasStockJ1 ? stockJ1 : "";
+      if (document.activeElement !== refs.stockInputJ) refs.stockInputJ.value = hasStockJ ? stockJ : "";
+      refs.reassortCell.textContent = demand;
+      refs.produceCell.textContent = toProduce;
+      if (document.activeElement !== refs.forecastInput) refs.forecastInput.value = hasForecast ? forecast : "";
+      var status, chip;
+      if (stock <= 0 && (demand > 0 || forecast > 0)) { status = "critical"; chip = "<span class=\"status-chip crit\"><span class=\"dot\"></span>Rupture</span>"; criticalCount++; }
+      else if (toProduce > 0) { status = "warning"; chip = "<span class=\"status-chip warn\"><span class=\"dot\"></span>À produire</span>"; }
+      else { status = "good"; chip = "<span class=\"status-chip good\"><span class=\"dot\"></span>Couvert</span>"; }
+      refs.statusCell.innerHTML = chip;
+      refs.rowEl.className = "row-" + status;
+      if (prodCategoryFilter === "all" || refs.catId === prodCategoryFilter) totalToProduce += toProduce;
+      if (refs.catId === "plats") totalBox += box; // Tuile BOX : uniquement la catégorie "Plats", indépendamment du filtre catégorie.
+      var done = !!prodDocCache.produced[it.id];
+      refs.checkBtn.className = "check" + (done ? " on" : "");
+      refs.checkBtn.textContent = done ? "✓" : "";
+      updateForecastCommentUI(it.id);
+    });
+
+    var submittedCount = Object.keys(submittedSiteIds).length;
+    tileSubmitted.textContent = submittedCount + "/" + SITES.length;
+    tileSubmittedSub.textContent = submittedCount === SITES.length ? "toutes les boutiques ont saisi" : "en attente de saisie";
+    tileCritical.textContent = criticalCount;
+    tileToProduce.textContent = totalToProduce;
+    tileBox.textContent = totalBox;
+    var missing = SITES.filter(function (s) { return !submittedSiteIds[s.id]; });
+    if (missing.length) { missingBanner.style.display = "flex"; renderSiteChipsInto(missingList, missing); }
+    else { missingBanner.style.display = "none"; }
+  }
+
+  async function refreshProductionSubscriptions() {
+    buildProductionTable();
+    await dbReady;
+    if (prodUnsubEntries) { prodUnsubEntries(); prodUnsubEntries = null; }
+    if (prodUnsubDoc) { prodUnsubDoc(); prodUnsubDoc = null; }
+    lastEntriesDocs = []; prodDocCache = { forecasts: {}, produced: {}, stocksJ1: {}, stocksJ: {}, forecastComments: {} };
+    if (!db) { recomputeProduction(); return; }
+    var date = dateInputP.value;
+    prodUnsubEntries = db.collection("entries").where("date", "==", date).onSnapshot(function (snap) {
+      lastEntriesDocs = snap.docs.map(function (d) { return d.data(); });
+      recomputeProduction();
+    }, function () {});
+    prodUnsubDoc = db.doc("production/" + date).onSnapshot(function (snap) {
+      var data = snap.exists ? snap.data() : null;
+      // Les données de snap.data() sont en lecture seule : on clone avant de les stocker dans
+      // prodDocCache, sinon éditer le stock/la prévision/le "Fait" plante silencieusement (même
+      // cause que le bug du catalogue) et le statut ne reflète jamais ce qui a été saisi.
+      prodDocCache.forecasts = deepClone((data && data.forecasts) || {});
+      prodDocCache.produced = deepClone((data && data.produced) || {});
+      prodDocCache.forecastComments = deepClone((data && data.forecastComments) || {});
+      if (data && (data.stocksJ1 || data.stocksJ)) {
+        prodDocCache.stocksJ1 = deepClone(data.stocksJ1 || {});
+        prodDocCache.stocksJ = deepClone(data.stocksJ || {});
+      } else {
+        // Bascule depuis l'ancien modèle à une seule colonne "Stock disponible" : reprise telle
+        // quelle comme colonne "J" (le stock du jour) ; "J-1" démarre vierge.
+        prodDocCache.stocksJ1 = {};
+        prodDocCache.stocksJ = deepClone((data && data.stocks) || {});
+      }
+      recomputeProduction();
+    }, function () {});
+  }
+  // Pas d'écouteur change/prev/next ici : dateInputP est désactivé et suit toujours dateInputR (syncProductionDate()).
+
+  // =======================================================================
+  // MENU (ADMIN) VIEW — le catalogue vit dans la base, plus dans le code
+  // =======================================================================
+  var catListMenu = document.getElementById("catListMenu");
+  var catListParametres = document.getElementById("catListParametres");
+  function buildParametresView() {
+    catListParametres.innerHTML = "";
+    if (session && session.role === "admin") { buildAccessPanel(catListParametres); buildSitesPanel(catListParametres); buildManagersPanel(catListParametres); }
+  }
+  var newCatName = document.getElementById("newCatName");
+  var newCatBtn = document.getElementById("newCatBtn");
+
+  function allIdsInCatalog() {
+    var ids = [];
+    catalog.forEach(function (c) { ids.push(c.id); c.items.forEach(function (it) { ids.push(it.id); }); });
+    return ids;
+  }
+
+  async function saveCatalog() {
+    if (currentView === "menu") buildMenuView();
+    await dbReady;
+    if (!db) return;
+    try { await db.doc(CATALOG_PATH).set({ categories: catalog, updatedAt: new Date().toISOString() }); } catch (e) {}
+  }
+
+  function makeConfirmButton(glyph, title, onConfirm) {
+    var btn = document.createElement("button");
+    btn.className = "ghostbtn danger"; btn.type = "button"; btn.title = title; btn.textContent = glyph;
+    var confirming = false;
+    // Taille fixe (26x26) dans les deux états pour que le 2e clic tombe bien sur le bouton :
+    // on ne fait jamais varier la largeur (pas de texte "Confirmer ?"), seulement l'icône/couleur/pulsation.
+    // Pas de minuteur : l'état "armé" reste tant qu'on ne clique pas ailleurs, pour ne jamais rater
+    // la confirmation si on met plus de quelques secondes à cliquer une seconde fois.
+    function arm() {
+      confirming = true; btn.classList.add("confirming"); btn.textContent = "✔";
+      btn.title = "Cliquez à nouveau pour confirmer";
+      document.addEventListener("click", cancelIfOutside, true);
+    }
+    function disarm() {
+      confirming = false; btn.classList.remove("confirming"); btn.textContent = glyph; btn.title = title;
+      document.removeEventListener("click", cancelIfOutside, true);
+    }
+    function cancelIfOutside(e) {
+      if (e.target !== btn) disarm();
+    }
+    btn.addEventListener("click", function () {
+      if (!confirming) { arm(); } else { disarm(); onConfirm(); }
+    });
+    return btn;
+  }
+
+  function buildMenuView() {
+    catListMenu.innerHTML = "";
+    catalog.forEach(function (cat, catIdx) {
+      var card = document.createElement("div"); card.className = "cat";
+      var head = document.createElement("div"); head.className = catHeadClass(cat);
+      var labelInput = document.createElement("input");
+      labelInput.type = "text"; labelInput.value = cat.label;
+      labelInput.style.cssText = "font-weight:700; text-transform:uppercase; letter-spacing:0.05em; font-size:12.5px; border:none; background:transparent; padding:2px 4px; color:inherit; max-width:220px;";
+      labelInput.addEventListener("change", function () {
+        var old = cat.label; cat.label = labelInput.value.trim() || cat.label;
+        if (cat.label !== old) logJournal("Catégorie renommée : « " + old + " » → « " + cat.label + " »");
+        saveCatalog();
+      });
+      head.appendChild(labelInput);
+      var headRight = document.createElement("div"); headRight.style.cssText = "display:flex; align-items:center; gap:4px;";
+      var catColorInput = document.createElement("input");
+      catColorInput.type = "color"; catColorInput.className = "cat-color-input";
+      catColorInput.title = "Couleur de la catégorie";
+      catColorInput.value = cat.color || "#93896f";
+      catColorInput.addEventListener("input", function () { cat.color = catColorInput.value; applyCategoryHeadColor(head, cat); });
+      catColorInput.addEventListener("change", function () {
+        cat.color = catColorInput.value;
+        logJournal("Couleur changée pour « " + cat.label + " »");
+        saveCatalog();
+      });
+      headRight.appendChild(catColorInput);
+      var moveUp = document.createElement("button");
+      moveUp.className = "ghostbtn"; moveUp.type = "button"; moveUp.title = "Monter"; moveUp.textContent = "▲"; moveUp.disabled = catIdx === 0;
+      moveUp.addEventListener("click", function () { catalog.splice(catIdx - 1, 0, catalog.splice(catIdx, 1)[0]); logJournal("Catégorie déplacée : « " + cat.label + " »"); saveCatalog(); });
+      var moveDown = document.createElement("button");
+      moveDown.className = "ghostbtn"; moveDown.type = "button"; moveDown.title = "Descendre"; moveDown.textContent = "▼"; moveDown.disabled = catIdx === catalog.length - 1;
+      moveDown.addEventListener("click", function () { catalog.splice(catIdx + 1, 0, catalog.splice(catIdx, 1)[0]); logJournal("Catégorie déplacée : « " + cat.label + " »"); saveCatalog(); });
+      var delCat = makeConfirmButton("🗑", "Supprimer la catégorie", function () { logJournal("Catégorie supprimée : « " + cat.label + " »"); catalog.splice(catIdx, 1); saveCatalog(); });
+      headRight.appendChild(moveUp); headRight.appendChild(moveDown); headRight.appendChild(delCat);
+      head.appendChild(headRight); card.appendChild(head);
+      applyCategoryHeadColor(head, cat);
+
+      cat.items.forEach(function (it, itemIdx) {
+        var row = document.createElement("div"); row.className = "menu-item-row";
+        var nameInput = document.createElement("input");
+        nameInput.type = "text"; nameInput.value = it.name;
+        nameInput.addEventListener("change", function () {
+          var old = it.name; it.name = nameInput.value.trim() || it.name;
+          if (it.name !== old) logJournal("Produit renommé : « " + old + " » → « " + it.name + " »");
+          saveCatalog();
+        });
+        row.appendChild(nameInput);
+        var toggle = document.createElement("button");
+        toggle.type = "button"; toggle.className = "toggle-pill " + (it.active !== false ? "on" : "off");
+        toggle.textContent = it.active !== false ? "Actif" : "Inactif";
+        toggle.addEventListener("click", function () {
+          it.active = it.active === false;
+          logJournal((it.active ? "Produit activé : " : "Produit désactivé : ") + it.name);
+          saveCatalog();
+        });
+        row.appendChild(toggle);
+        var iUp = document.createElement("button");
+        iUp.className = "ghostbtn"; iUp.type = "button"; iUp.title = "Monter"; iUp.textContent = "▲"; iUp.disabled = itemIdx === 0;
+        iUp.addEventListener("click", function () { cat.items.splice(itemIdx - 1, 0, cat.items.splice(itemIdx, 1)[0]); logJournal("Produit déplacé : " + it.name); saveCatalog(); });
+        row.appendChild(iUp);
+        var iDown = document.createElement("button");
+        iDown.className = "ghostbtn"; iDown.type = "button"; iDown.title = "Descendre"; iDown.textContent = "▼"; iDown.disabled = itemIdx === cat.items.length - 1;
+        iDown.addEventListener("click", function () { cat.items.splice(itemIdx + 1, 0, cat.items.splice(itemIdx, 1)[0]); logJournal("Produit déplacé : " + it.name); saveCatalog(); });
+        row.appendChild(iDown);
+        var delItem = makeConfirmButton("🗑", "Supprimer le produit", function () { logJournal("Produit supprimé : " + it.name + " (« " + cat.label + " »)"); cat.items.splice(itemIdx, 1); saveCatalog(); });
+        row.appendChild(delItem);
+        card.appendChild(row);
+      });
+
+      var addRow = document.createElement("div"); addRow.className = "add-row";
+      var addInput = document.createElement("input"); addInput.type = "text"; addInput.placeholder = "Nouveau produit dans « " + cat.label + " »";
+      var addBtn = document.createElement("button"); addBtn.textContent = "+ Ajouter";
+      function doAdd() {
+        var name = addInput.value.trim(); if (!name) return;
+        var id = uniqueId(name, allIdsInCatalog());
+        cat.items.push({ id: id, name: name, active: true }); addInput.value = "";
+        logJournal("Produit ajouté : " + name + " (« " + cat.label + " »)");
+        saveCatalog();
+      }
+      addBtn.addEventListener("click", doAdd);
+      addInput.addEventListener("keydown", function (e) { if (e.key === "Enter") doAdd(); });
+      addRow.appendChild(addInput); addRow.appendChild(addBtn); card.appendChild(addRow);
+      catListMenu.appendChild(card);
+    });
+  }
+
+  function doAddCategory() {
+    var name = newCatName.value.trim(); if (!name) return;
+    var id = uniqueId(name, allIdsInCatalog());
+    catalog.push({ id: id, label: name.toUpperCase(), items: [] });
+    newCatName.value = "";
+    logJournal("Catégorie ajoutée : « " + name.toUpperCase() + " »");
+    saveCatalog();
+  }
+  newCatBtn.addEventListener("click", doAddCategory);
+  newCatName.addEventListener("keydown", function (e) { if (e.key === "Enter") doAddCategory(); });
+
+  // =======================================================================
+  // RESET AUTOMATIQUE — remet à 0 le stock, le réassort et les commentaires
+  // de TOUTES les dates déjà saisies, pour les 10 boutiques, chaque jour
+  // ouvré (lun-ven) une fois 10h passées. Déclenché depuis le navigateur :
+  // vérifié au chargement puis toutes les minutes tant que l'appli reste
+  // ouverte quelque part (boutique, admin...). Protégé par un marqueur
+  // partagé (settings/dailyReset) pour n'agir qu'une seule fois par jour,
+  // même si plusieurs postes ont l'appli ouverte au même moment.
+  // =======================================================================
+  var DAILY_RESET_PATH = "settings/dailyReset";
+  // Réutilise DAILY_CUTOVER_HOUR (défini plus haut avec nextReassortDate()) : les deux basculent à la même heure.
+
+  function isWeekdayMonToFri(d) { var day = d.getDay(); return day >= 1 && day <= 5; }
+
+  async function checkDailyReset() {
+    await dbReady;
+    if (!db) return;
+    var now = new Date();
+    if (!isWeekdayMonToFri(now) || now.getHours() < DAILY_CUTOVER_HOUR) return;
+    var today = todayISO();
+    var ref = db.doc(DAILY_RESET_PATH);
+    try {
+      var snap = await ref.get();
+      var last = snap.exists ? snap.data().lastResetDate : null;
+      if (last === today) return; // déjà fait aujourd'hui
+      await ref.set({ lastResetDate: today, resetAt: new Date().toISOString() }); // marqué avant d'agir
+    } catch (e) { return; }
+    await performDailyReset("automatique");
+  }
+
+  async function performDailyReset(trigger) {
+    try {
+      var snap = await db.collection("entries").get();
+      var jobs = snap.docs.map(function (d) {
+        var data = d.data();
+        // items: {} (et non un 0 explicite par produit) pour que les cases reviennent vraiment
+        // vierges après le reset, au lieu d'afficher un faux "0" tant qu'on n'a rien resaisi.
+        return db.doc("entries/" + entryDocId(data.date, data.site)).set({
+          date: data.date, site: data.site, items: {}, comments: [], updatedAt: new Date().toISOString()
+        });
+      });
+      await Promise.all(jobs);
+      logJournal("Reset " + (trigger || "manuel") + " : stock/réassort/BOX/commentaires remis à 0 pour toutes les boutiques (" + snap.docs.length + " entrée" + (snap.docs.length > 1 ? "s" : "") + ")");
+    } catch (e) {}
+  }
+
+  checkDailyReset();
+  setInterval(checkDailyReset, 60000);
+
+  // ---------------------------------------------------------------------
+  // Boot — le catalogue est chargé (et amorcé si absent) avant tout le reste
+  // ---------------------------------------------------------------------
+  function initAfterCatalog() {
+    showView("boutique");
+    subscribeStockWeek();
+    subscribeReassort();
+  }
+
+  function onCatalogChanged() {
+    buildStockGrid(); applyStockSnapshot();
+    applyReassortSnapshot({ items: reassortBaseline, comments: commentsCache, updatedAt: true });
+    buildReassortMatrixTable(); recomputeReassortMatrix();
+    buildProductionTable(); recomputeProduction();
+    if (currentView === "menu") buildMenuView();
+  }
+
+  // ---------------------------------------------------------------------
+  // Boutiques — liste éditable par l'admin (Paramètres), chargée indépendamment
+  // du catalogue produits, avec le même principe (repli sur une liste par
+  // défaut tant que rien n'est enregistré en base).
+  // ---------------------------------------------------------------------
+  async function saveSites() {
+    if (currentView === "parametres") buildParametresView();
+    await dbReady;
+    if (!db) return;
+    try { await db.doc(SITES_PATH).set({ list: SITES, updatedAt: new Date().toISOString() }); } catch (e) {}
+  }
+
+  function onSitesChanged() {
+    buildSiteSelect();
+    onSiteChangedForStockDates();
+    subscribeStockWeek(); subscribeReassort();
+    buildReassortMatrixTable(); recomputeReassortMatrix();
+    recomputeProduction();
+    if (currentView === "comments") refreshCommentsRecap();
+    if (currentView === "parametres") buildParametresView();
+  }
+
+  (async function bootSites() {
+    await dbReady;
+    if (!db) { sitesLoadedOnce = true; return; }
+    var ref = db.doc(SITES_PATH);
+    ref.onSnapshot(function (snap) {
+      var incoming = (snap.exists && snap.data().list && snap.data().list.length) ? snap.data().list : null;
+      if (!incoming) { incoming = DEFAULT_SITES; ref.set({ list: incoming, updatedAt: new Date().toISOString() }).catch(function () {}); }
+      SITES = deepClone(incoming); sitesLoadedOnce = true;
+      onSitesChanged();
+    }, function () { sitesLoadedOnce = true; });
+  })();
+
+  (async function boot() {
+    await dbReady;
+    if (!db) { catalog = deepClone(DEFAULT_CATALOG); catalogLoadedOnce = true; initAfterCatalog(); return; }
+    var ref = db.doc(CATALOG_PATH);
+    ref.onSnapshot(function (snap) {
+      var incoming = (snap.exists && snap.data().categories) ? snap.data().categories : null;
+      if (!incoming) { incoming = DEFAULT_CATALOG; ref.set({ categories: incoming, updatedAt: new Date().toISOString() }).catch(function () {}); }
+      var firstLoad = !catalogLoadedOnce;
+      catalog = deepClone(incoming); catalogLoadedOnce = true;
+      if (firstLoad) initAfterCatalog(); else onCatalogChanged();
+    }, function () {
+      if (!catalogLoadedOnce) { catalog = deepClone(DEFAULT_CATALOG); catalogLoadedOnce = true; initAfterCatalog(); }
+    });
+  })();
+})();
+</script>
+</body>
+</html>
