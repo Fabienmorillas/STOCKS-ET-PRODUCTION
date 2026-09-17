@@ -223,7 +223,7 @@
   thead tr th.name-col { background: var(--surface-2); }
 
   /* Produit désactivé dans le catalogue, mais visible en boutique pour écouler le stock restant */
-  tr.row-inactive-product { opacity: 0.6; }
+  .row-inactive-product { opacity: 0.6; }
   .inactive-badge { margin-left: 8px; font-size: 9.5px; padding: 2px 7px; }
 
   /* Même largeur que .prevision-input (Production) pour que les colonnes de chiffres restent
@@ -787,7 +787,11 @@
   function categoryColorClass(cat) { return (cat && CATEGORY_COLOR_CLASS[cat.id]) || ""; }
   function catHeadClass(cat) { var c = categoryColorClass(cat); return c ? "cat-head " + c : "cat-head"; }
 
-  function activeItems(cat) { return cat.items.filter(function (it) { return it.active !== false; }); }
+  // Une catégorie désactivée (voir buildMenuView()) se comporte comme si tous ses produits étaient
+  // inactifs pour tout ce qui se base sur activeItems()/allActiveItems() (Réassort, Production…) —
+  // elle reste néanmoins visible (grisée) dans la grille Stock de Boutique, voir buildStockGrid().
+  function categoryActive(cat) { return cat && cat.active !== false; }
+  function activeItems(cat) { return categoryActive(cat) ? cat.items.filter(function (it) { return it.active !== false; }) : []; }
   function allItems() {
     var out = [];
     catalog.forEach(function (cat) { cat.items.forEach(function (it) { out.push(it); }); });
@@ -931,6 +935,7 @@
 
   function showView(name) {
     currentView = name;
+    if (name !== "parametres") unsubscribeBackups();
     viewBoutique.style.display = name === "boutique" ? "" : "none";
     viewReassort.style.display = name === "reassort" ? "" : "none";
     viewComments.style.display = name === "comments" ? "" : "none";
@@ -1698,11 +1703,15 @@
       // Réassort demandé et son BOX sont verrouillés (voir plus bas et applyRoleGating()).
       var items = cat.items;
       if (!items.length) return;
+      // Une catégorie désactivée dans Menu reste visible ici (grisée, comme un produit inactif) pour
+      // pouvoir écouler/compter le stock restant de ses produits, mais Réassort/BOX y sont verrouillés
+      // pour tous ses produits (voir plus bas), même ceux individuellement actifs.
+      var catIsActive = categoryActive(cat);
       var card = document.createElement("div");
-      card.className = "cat";
+      card.className = "cat" + (catIsActive ? "" : " row-inactive-product");
       var head = document.createElement("div");
       head.className = catHeadClass(cat);
-      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits</span>";
+      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits" + (catIsActive ? "" : " · catégorie inactive") + "</span>";
       applyCategoryHeadColor(head, cat);
       card.appendChild(head);
 
@@ -1717,14 +1726,15 @@
       var tbody = document.createElement("tbody");
 
       items.forEach(function (it) {
-        var isActive = it.active !== false;
+        var isActive = it.active !== false && catIsActive;
         stockGridItemActive[it.id] = isActive;
         var tr = document.createElement("tr");
         if (!isActive) tr.className = "row-inactive-product";
         var tdName = document.createElement("td"); tdName.className = "name"; tdName.title = it.name;
         tdName.textContent = it.name;
         if (!isActive) {
-          var badge = document.createElement("span"); badge.className = "toggle-pill off inactive-badge"; badge.textContent = "Inactif";
+          var badge = document.createElement("span"); badge.className = "toggle-pill off inactive-badge";
+          badge.textContent = catIsActive ? "Inactif" : "Catégorie inactive";
           tdName.appendChild(badge);
         }
         tr.appendChild(tdName);
@@ -2537,7 +2547,13 @@
   var catListParametres = document.getElementById("catListParametres");
   function buildParametresView() {
     catListParametres.innerHTML = "";
-    if (session && session.role === "admin") { buildAccessPanel(catListParametres); buildSitesPanel(catListParametres); buildManagersPanel(catListParametres); }
+    if (session && session.role === "admin") {
+      buildAccessPanel(catListParametres);
+      buildSitesPanel(catListParametres);
+      buildManagersPanel(catListParametres);
+      buildBackupsPanel(catListParametres);
+      subscribeBackups();
+    }
   }
   var newCatName = document.getElementById("newCatName");
   var newCatBtn = document.getElementById("newCatBtn");
@@ -2607,6 +2623,16 @@
         saveCatalog();
       });
       headRight.appendChild(catColorInput);
+      var catToggle = document.createElement("button");
+      catToggle.type = "button"; catToggle.className = "toggle-pill " + (categoryActive(cat) ? "on" : "off");
+      catToggle.textContent = categoryActive(cat) ? "Active" : "Inactive";
+      catToggle.title = "Une catégorie inactive disparaît du Réassort et de la Production, mais reste visible (grisée) en Boutique pour écouler le stock restant.";
+      catToggle.addEventListener("click", function () {
+        cat.active = cat.active === false;
+        logJournal((categoryActive(cat) ? "Catégorie activée : « " : "Catégorie désactivée : « ") + cat.label + " »");
+        saveCatalog();
+      });
+      headRight.appendChild(catToggle);
       var moveUp = document.createElement("button");
       moveUp.className = "ghostbtn"; moveUp.type = "button"; moveUp.title = "Monter"; moveUp.textContent = "▲"; moveUp.disabled = catIdx === 0;
       moveUp.addEventListener("click", function () { catalog.splice(catIdx - 1, 0, catalog.splice(catIdx, 1)[0]); logJournal("Catégorie déplacée : « " + cat.label + " »"); saveCatalog(); });
@@ -2679,6 +2705,364 @@
   newCatName.addEventListener("keydown", function (e) { if (e.key === "Enter") doAddCategory(); });
 
   // =======================================================================
+  // SAUVEGARDES — capture complète de l'état du site (stock/réassort/BOX/
+  // commentaires, production, catalogue, boutiques, managers, accès), à la
+  // demande depuis Paramètres, ou automatiquement juste avant chaque reset
+  // (quotidien ou forcé) puisque celui-ci efface le stock/réassort/BOX/
+  // commentaires de toutes les boutiques — voir performDailyReset() plus bas.
+  // =======================================================================
+  var BACKUPS_PATH = "backups";
+  var BACKUPS = [];
+  var backupsUnsub = null;
+
+  async function createBackup(trigger) {
+    await dbReady;
+    if (!db) return null;
+    try {
+      var entriesSnap = await db.collection("entries").get();
+      var productionSnap = await db.collection("production").get();
+      var catalogSnap = await db.doc(CATALOG_PATH).get();
+      var sitesSnap = await db.doc(SITES_PATH).get();
+      var managersSnap = await db.doc(MANAGERS_PATH).get();
+      var accessSnap = await db.doc(SETTINGS_PATH).get();
+      var now = new Date();
+      var id = todayISO() + "_" + now.toTimeString().slice(0, 8).replace(/:/g, "");
+      var backup = {
+        createdAt: now.toISOString(),
+        trigger: trigger || "manuel",
+        entriesCount: entriesSnap.docs.length,
+        productionCount: productionSnap.docs.length,
+        entries: entriesSnap.docs.map(function (d) { return d.data(); }),
+        production: productionSnap.docs.map(function (d) { return d.data(); }),
+        catalog: catalogSnap.exists ? catalogSnap.data() : null,
+        sites: sitesSnap.exists ? sitesSnap.data() : null,
+        managers: managersSnap.exists ? managersSnap.data() : null,
+        access: accessSnap.exists ? accessSnap.data() : null
+      };
+      await db.doc(BACKUPS_PATH + "/" + id).set(backup);
+      return id;
+    } catch (e) { return null; }
+  }
+
+  // Restaure une sauvegarde : écrase entries/production/catalogue/boutiques/managers/accès avec le
+  // contenu figé dans la sauvegarde. Une entrée ou une production absente de la sauvegarde (créée
+  // après coup) est remise à vide plutôt que laissée telle quelle, pour un retour fidèle à l'état
+  // sauvegardé. Par sécurité, une sauvegarde de l'état ACTUEL est prise juste avant d'écraser quoi
+  // que ce soit, pour pouvoir annuler la restauration (elle apparaît dans la liste juste après).
+  async function restoreBackup(backup) {
+    await dbReady;
+    if (!db) return false;
+    try {
+      await createBackup("automatique (avant restauration)");
+      var jobs = [];
+      var backupEntryKeys = {};
+      (backup.entries || []).forEach(function (data) {
+        backupEntryKeys[entryDocId(data.date, data.site)] = true;
+        jobs.push(db.doc("entries/" + entryDocId(data.date, data.site)).set(data));
+      });
+      var currentEntriesSnap = await db.collection("entries").get();
+      currentEntriesSnap.docs.forEach(function (d) {
+        var data = d.data();
+        var key = entryDocId(data.date, data.site);
+        if (!backupEntryKeys[key]) {
+          jobs.push(db.doc("entries/" + key).set({ date: data.date, site: data.site, items: {}, comments: [], updatedAt: new Date().toISOString() }));
+        }
+      });
+      var backupProdKeys = {};
+      (backup.production || []).forEach(function (data) {
+        backupProdKeys[data.date] = true;
+        jobs.push(db.doc("production/" + data.date).set(data));
+      });
+      var currentProductionSnap = await db.collection("production").get();
+      currentProductionSnap.docs.forEach(function (d) {
+        var data = d.data();
+        if (!backupProdKeys[data.date]) {
+          jobs.push(db.doc("production/" + data.date).set({ date: data.date, forecasts: {}, stocksJ1: {}, stocksJ: {}, produced: {}, forecastComments: {}, updatedAt: new Date().toISOString() }));
+        }
+      });
+      if (backup.catalog) jobs.push(db.doc(CATALOG_PATH).set(backup.catalog));
+      if (backup.sites) jobs.push(db.doc(SITES_PATH).set(backup.sites));
+      if (backup.managers) jobs.push(db.doc(MANAGERS_PATH).set(backup.managers));
+      if (backup.access) jobs.push(db.doc(SETTINGS_PATH).set(backup.access));
+      await Promise.all(jobs);
+      var d = new Date(backup.createdAt);
+      var stamp = isNaN(d.getTime()) ? "" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      logJournal("Sauvegarde du " + stamp + " restaurée (état précédent sauvegardé avant restauration)");
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function closeBackupViewer() {
+    var el = document.getElementById("backupViewerOverlay");
+    if (el) el.remove();
+  }
+  // Consultation "visuelle" d'une sauvegarde : réutilise les mêmes composants que les vraies vues
+  // (cartes de catégorie colorées, chips de boutique, tableaux num) plutôt qu'une simple liste de
+  // texte, mais en lecture seule et à partir des données figées de la sauvegarde (pas de la base live) —
+  // donc avec ses propres résolveurs de nom de produit / boutique (bvProductName, bvSite) au lieu de
+  // productName()/siteLabel() qui, eux, lisent le catalogue/les boutiques ACTUELS.
+  function openBackupViewer(backup) {
+    closeBackupViewer();
+    var bSites = (backup.sites && backup.sites.list) || [];
+    var bCatalog = (backup.catalog && backup.catalog.categories) || [];
+    var bManagers = (backup.managers && backup.managers.list) || [];
+    var bEntries = backup.entries || [];
+    var bProduction = backup.production || [];
+    var bProductNames = {};
+    bCatalog.forEach(function (cat) { (cat.items || []).forEach(function (it) { bProductNames[it.id] = it.name; }); });
+    function bvProductName(pid) { return bProductNames[pid] || pid; }
+    function bvSite(id) { return bSites.filter(function (s) { return s.id === id; })[0]; }
+
+    var overlay = document.createElement("div");
+    overlay.id = "backupViewerOverlay";
+    overlay.className = "journal-overlay";
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) closeBackupViewer(); });
+    var panel = document.createElement("div"); panel.className = "journal-panel"; panel.style.maxWidth = "900px";
+    var head = document.createElement("div"); head.className = "journal-panel-head";
+    var d = new Date(backup.createdAt);
+    var stamp = isNaN(d.getTime()) ? "" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    var h2 = document.createElement("h2"); h2.textContent = "Sauvegarde du " + stamp;
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button"; closeBtn.className = "ghostbtn"; closeBtn.title = "Fermer"; closeBtn.setAttribute("aria-label", "Fermer"); closeBtn.textContent = "✕";
+    closeBtn.addEventListener("click", closeBackupViewer);
+    head.appendChild(h2); head.appendChild(closeBtn);
+    panel.appendChild(head);
+
+    // Un conteneur flex-column ici ferait passer à 0 la hauteur minimale des cartes (.cat a
+    // overflow:hidden, et un item flex avec overflow non-visible a un min-size automatique nul) :
+    // elles seraient écrasées au lieu de s'empiler normalement. On reste donc en bloc classique et
+    // on simule l'espacement par une marge basse (appendToBody) plutôt que par "gap".
+    var body = document.createElement("div"); body.style.cssText = "padding:4px 18px 18px; max-height:75vh; overflow-y:auto;";
+    function appendToBody(el) { el.style.marginBottom = "14px"; body.appendChild(el); }
+
+    var isAuto = (backup.trigger || "").indexOf("automatique") === 0;
+    var originChip = document.createElement("span");
+    originChip.className = "status-chip " + (isAuto ? "good" : "warn");
+    originChip.innerHTML = "<span class=\"dot\"></span>" + (isAuto ? "Automatique" : "Manuelle") + " — " + (backup.trigger || "manuel");
+    originChip.style.display = "inline-flex";
+    appendToBody(originChip);
+
+    function sectionTitle(text) {
+      var h = document.createElement("div");
+      h.style.cssText = "font-family:'Bebas Neue','IBM Plex Sans',sans-serif; font-size:17px; letter-spacing:0.02em; color:var(--ink-2);";
+      h.textContent = text;
+      appendToBody(h);
+    }
+    function emptyNote() {
+      var p = document.createElement("p"); p.className = "access-note"; p.style.cssText = "margin:0; padding:0;"; p.textContent = "Aucune donnée.";
+      appendToBody(p);
+    }
+
+    // Boutiques — chips colorées, identiques à celles utilisées partout ailleurs dans l'appli.
+    sectionTitle("Boutiques (" + bSites.length + ")");
+    if (bSites.length) {
+      var siteChipsWrap = document.createElement("div"); siteChipsWrap.style.cssText = "display:flex; flex-wrap:wrap;";
+      renderSiteChipsInto(siteChipsWrap, bSites);
+      appendToBody(siteChipsWrap);
+    } else { emptyNote(); }
+
+    // Managers — puce colorée de la boutique affectée + email.
+    sectionTitle("Managers (" + bManagers.length + ")");
+    if (bManagers.length) {
+      var mgrWrap = document.createElement("div"); mgrWrap.style.cssText = "display:flex; flex-direction:column; gap:2px;";
+      bManagers.forEach(function (m) {
+        var row = document.createElement("div"); row.style.cssText = "display:flex; align-items:center; gap:8px; font-size:13.5px; padding:3px 0;";
+        var s = bvSite(m.siteId);
+        var dot = document.createElement("span"); dot.className = "site-dot"; dot.style.cssText = "width:9px; height:9px;"; dot.style.background = s ? siteColorOf(s) : "var(--ink-3)";
+        var txt = document.createElement("span"); txt.textContent = m.email + (s ? " — " + s.label : "");
+        row.appendChild(dot); row.appendChild(txt);
+        mgrWrap.appendChild(row);
+      });
+      appendToBody(mgrWrap);
+    } else { emptyNote(); }
+
+    // Catalogue — cartes de catégorie colorées, produits en pastilles Actif/Inactif, exactement
+    // comme dans Menu (mais sans les contrôles d'édition).
+    sectionTitle("Catalogue (" + bCatalog.length + " catégorie" + (bCatalog.length > 1 ? "s" : "") + ")");
+    if (bCatalog.length) {
+      bCatalog.forEach(function (cat) {
+        var card = document.createElement("div"); card.className = "cat" + (cat.active === false ? " row-inactive-product" : "");
+        var chead = document.createElement("div"); chead.className = catHeadClass(cat);
+        chead.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + (cat.items || []).length + " produits" + (cat.active === false ? " · catégorie inactive" : "") + "</span>";
+        applyCategoryHeadColor(chead, cat);
+        card.appendChild(chead);
+        var itemsWrap = document.createElement("div"); itemsWrap.style.cssText = "display:flex; flex-wrap:wrap; gap:6px; padding:10px 14px;";
+        (cat.items || []).forEach(function (it) {
+          var pill = document.createElement("span"); pill.className = "toggle-pill " + (it.active !== false ? "on" : "off");
+          pill.textContent = it.name;
+          itemsWrap.appendChild(pill);
+        });
+        card.appendChild(itemsWrap);
+        appendToBody(card);
+      });
+    } else { emptyNote(); }
+
+    // Stock / Réassort / BOX — une carte par boutique (couleur de la boutique, comme Commentaires),
+    // avec un tableau des seuls produits renseignés, toutes dates confondues.
+    var entriesBySite = {};
+    bEntries.forEach(function (e) {
+      if (!e.items || !Object.keys(e.items).length) return;
+      if (!entriesBySite[e.site]) entriesBySite[e.site] = [];
+      entriesBySite[e.site].push(e);
+    });
+    var entriesTotal = backup.entriesCount != null ? backup.entriesCount : bEntries.length;
+    var siteIdsWithData = Object.keys(entriesBySite);
+    sectionTitle("Stock, réassort & BOX (" + siteIdsWithData.length + " boutique" + (siteIdsWithData.length > 1 ? "s" : "") + " avec données sur " + entriesTotal + " entrée" + (entriesTotal > 1 ? "s" : "") + " au total)");
+    if (siteIdsWithData.length) {
+      siteIdsWithData.forEach(function (siteId) {
+        var s = bvSite(siteId);
+        var card = document.createElement("div"); card.className = "cat";
+        var chead = document.createElement("div"); chead.className = "cat-head";
+        chead.innerHTML = "<h2>" + (s ? s.label : siteId) + "</h2>";
+        if (s) applySiteHeadColor(chead, s);
+        card.appendChild(chead);
+        var scroller = document.createElement("div"); scroller.className = "scrollx";
+        var table = document.createElement("table");
+        table.innerHTML = "<thead><tr><th class=\"name-col\">Produit</th><th class=\"num\">Date</th><th class=\"num\">Stock</th><th class=\"num\">Réassort</th><th class=\"num\">BOX</th></tr></thead>";
+        var tbody = document.createElement("tbody");
+        entriesBySite[siteId].forEach(function (e) {
+          Object.keys(e.items).forEach(function (pid) {
+            var it = e.items[pid];
+            var tr = document.createElement("tr");
+            var tdName = document.createElement("td"); tdName.className = "name"; tdName.textContent = bvProductName(pid); tr.appendChild(tdName);
+            var tdDate = document.createElement("td"); tdDate.className = "num"; tdDate.textContent = shortLabel(e.date); tr.appendChild(tdDate);
+            ["stock", "reassort", "box"].forEach(function (f) {
+              var td = document.createElement("td"); td.className = "num " + (it[f] ? "num-nonzero" : "num-zero");
+              td.textContent = it[f] != null ? it[f] : "–";
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+        });
+        table.appendChild(tbody);
+        scroller.appendChild(table);
+        card.appendChild(scroller);
+        appendToBody(card);
+      });
+    } else { emptyNote(); }
+
+    // Production — un tableau par date, mêmes colonnes que le vrai onglet Production.
+    sectionTitle("Production (" + bProduction.length + " jour" + (bProduction.length > 1 ? "s" : "") + ")");
+    if (bProduction.length) {
+      bProduction.forEach(function (p) {
+        var card = document.createElement("div"); card.className = "cat";
+        var chead = document.createElement("div"); chead.className = "cat-head";
+        chead.innerHTML = "<h2>" + shortLabel(p.date) + "</h2>";
+        card.appendChild(chead);
+        var scroller = document.createElement("div"); scroller.className = "scrollx";
+        var table = document.createElement("table");
+        table.innerHTML = "<thead><tr><th class=\"name-col\">Produit</th><th class=\"num\">Stock J-1</th><th class=\"num\">Stock J</th><th class=\"num\">Prévision</th><th style=\"text-align:center\">Fait</th></tr></thead>";
+        var tbody = document.createElement("tbody");
+        var pids = {};
+        Object.keys(p.forecasts || {}).forEach(function (pid) { pids[pid] = true; });
+        Object.keys(p.stocksJ1 || {}).forEach(function (pid) { pids[pid] = true; });
+        Object.keys(p.stocksJ || {}).forEach(function (pid) { pids[pid] = true; });
+        Object.keys(p.produced || {}).forEach(function (pid) { pids[pid] = true; });
+        Object.keys(pids).forEach(function (pid) {
+          var tr = document.createElement("tr");
+          var tdName = document.createElement("td"); tdName.className = "name"; tdName.textContent = bvProductName(pid); tr.appendChild(tdName);
+          [["stocksJ1"], ["stocksJ"], ["forecasts"]].forEach(function (pair) {
+            var v = (p[pair[0]] || {})[pid];
+            var td = document.createElement("td"); td.className = "num " + (v ? "num-nonzero" : "num-zero"); td.textContent = v != null ? v : "–";
+            tr.appendChild(td);
+          });
+          var tdDone = document.createElement("td"); tdDone.style.textAlign = "center"; tdDone.textContent = (p.produced || {})[pid] ? "✓" : "";
+          tr.appendChild(tdDone);
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        scroller.appendChild(table);
+        card.appendChild(scroller);
+        appendToBody(card);
+      });
+    } else { emptyNote(); }
+
+    panel.appendChild(body);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+  }
+
+  async function subscribeBackups() {
+    if (backupsUnsub) return;
+    await dbReady;
+    if (!db || backupsUnsub) return;
+    backupsUnsub = db.collection(BACKUPS_PATH).onSnapshot(function (snap) {
+      BACKUPS = snap.docs.map(function (d) { return d.data(); });
+      BACKUPS.sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+      if (currentView === "parametres") buildParametresView();
+    }, function () {});
+  }
+  function unsubscribeBackups() {
+    if (backupsUnsub) { backupsUnsub(); backupsUnsub = null; }
+  }
+
+  function buildBackupsPanel(container) {
+    var card = document.createElement("div"); card.className = "cat access-panel-card";
+    var head = document.createElement("div"); head.className = "cat-head";
+    head.innerHTML = "<h2>Sauvegardes</h2><span class=\"count\">" + BACKUPS.length + "</span>";
+    card.appendChild(head);
+
+    var actionRow = document.createElement("div"); actionRow.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 14px;";
+    var backupBtn = document.createElement("button"); backupBtn.type = "button"; backupBtn.className = "btn-primary"; backupBtn.textContent = "Sauvegarder maintenant";
+    var backupMsg = document.createElement("span"); backupMsg.className = "hint";
+    backupBtn.addEventListener("click", async function () {
+      backupBtn.disabled = true; backupBtn.textContent = "Sauvegarde…";
+      var id = await createBackup("manuel");
+      logJournal(id ? "Sauvegarde manuelle créée" : "Sauvegarde manuelle échouée");
+      backupBtn.disabled = false; backupBtn.textContent = "Sauvegarder maintenant";
+      backupMsg.textContent = id ? "Fait à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "Échec de la sauvegarde.";
+      setTimeout(function () { backupMsg.textContent = ""; }, 4000);
+    });
+    actionRow.appendChild(backupBtn); actionRow.appendChild(backupMsg);
+    card.appendChild(actionRow);
+
+    if (!BACKUPS.length) {
+      var empty = document.createElement("p"); empty.className = "access-note"; empty.textContent = "Aucune sauvegarde pour l'instant.";
+      card.appendChild(empty);
+    } else {
+      var list = document.createElement("div"); list.className = "journal-list"; list.style.maxHeight = "320px";
+      BACKUPS.slice(0, 30).forEach(function (b) {
+        var r = document.createElement("div"); r.className = "journal-row"; r.style.flexWrap = "wrap";
+        var d = new Date(b.createdAt);
+        var timeEl = document.createElement("span"); timeEl.className = "j-time";
+        timeEl.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        var roleEl = document.createElement("span"); roleEl.className = "j-role";
+        roleEl.textContent = (b.trigger || "").indexOf("automatique") === 0 ? "Auto" : "Manuel";
+        var textEl = document.createElement("span"); textEl.className = "j-text";
+        var parts = [];
+        if (b.entriesCount != null) parts.push(b.entriesCount + " entrée" + (b.entriesCount > 1 ? "s" : ""));
+        if (b.productionCount) parts.push(b.productionCount + " jour" + (b.productionCount > 1 ? "s" : "") + " de production");
+        textEl.textContent = parts.join(", ") || "—";
+        r.appendChild(timeEl); r.appendChild(roleEl); r.appendChild(textEl);
+
+        var actions = document.createElement("span"); actions.style.cssText = "display:flex; gap:2px; margin-left:auto; flex:none;";
+        var viewBtn = document.createElement("button");
+        viewBtn.type = "button"; viewBtn.className = "ghostbtn"; viewBtn.title = "Consulter cette sauvegarde"; viewBtn.textContent = "👁";
+        viewBtn.addEventListener("click", function () { openBackupViewer(b); });
+        actions.appendChild(viewBtn);
+        var restoreBtn = makeConfirmButton("♻️", "Restaurer cette sauvegarde — écrase l'état actuel du site", function () {
+          restoreBtn.disabled = true;
+          restoreBackup(b).then(function (ok) {
+            restoreBtn.disabled = false;
+            backupMsg.textContent = ok ? "Sauvegarde restaurée à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "Échec de la restauration.";
+            setTimeout(function () { backupMsg.textContent = ""; }, 5000);
+          });
+        });
+        actions.appendChild(restoreBtn);
+        r.appendChild(actions);
+        list.appendChild(r);
+      });
+      card.appendChild(list);
+    }
+
+    var note = document.createElement("p"); note.className = "access-note";
+    note.textContent = "Chaque sauvegarde capture l'état complet du site (stock, réassort, BOX, commentaires, production, catalogue, boutiques, managers, accès) au moment où elle est créée. Une sauvegarde automatique est faite juste avant chaque reset, quotidien ou forcé, puisque celui-ci efface le stock/réassort/BOX/commentaires de toutes les boutiques. 👁 affiche le contenu d'une sauvegarde ; ♻️ (double clic pour confirmer) restaure le site tel qu'il était à ce moment-là — une sauvegarde de l'état actuel est prise automatiquement juste avant, pour pouvoir annuler.";
+    card.appendChild(note);
+
+    container.appendChild(card);
+  }
+
+  // =======================================================================
   // RESET AUTOMATIQUE — remet à 0 le stock, le réassort et les commentaires
   // de TOUTES les dates déjà saisies, pour les 10 boutiques, chaque jour
   // ouvré (lun-ven) une fois 10h passées. Déclenché depuis le navigateur :
@@ -2710,6 +3094,7 @@
 
   async function performDailyReset(trigger) {
     try {
+      var backupId = await createBackup(trigger === "automatique" ? "automatique (avant reset quotidien)" : "manuel (avant reset forcé)");
       var snap = await db.collection("entries").get();
       var jobs = snap.docs.map(function (d) {
         var data = d.data();
@@ -2720,7 +3105,7 @@
         });
       });
       await Promise.all(jobs);
-      logJournal("Reset " + (trigger || "manuel") + " : stock/réassort/BOX/commentaires remis à 0 pour toutes les boutiques (" + snap.docs.length + " entrée" + (snap.docs.length > 1 ? "s" : "") + ")");
+      logJournal("Reset " + (trigger || "manuel") + " : stock/réassort/BOX/commentaires remis à 0 pour toutes les boutiques (" + snap.docs.length + " entrée" + (snap.docs.length > 1 ? "s" : "") + ")" + (backupId ? " — sauvegarde créée avant reset" : ""));
     } catch (e) {}
   }
 
