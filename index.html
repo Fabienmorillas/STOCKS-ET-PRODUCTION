@@ -410,7 +410,7 @@
 
 <div id="authGate" class="authgate">
   <div class="authcard">
-    <h1>FOUD - stocks et production</h1>
+    <h1>FOUD <span class="dot">&bull;</span> stocks et production</h1>
     <p class="hint">Accès réservé aux équipes boutique et production</p>
     <div class="roletabs">
       <button id="roleTabBoutique" type="button" class="active">Manager</button>
@@ -444,7 +444,7 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand">
-      <h1>FOUD - stocks et production</h1>
+      <h1>FOUD <span class="dot">&bull;</span> stocks et production</h1>
     </div>
     <div class="tabs" role="tablist" aria-label="Vue">
       <button id="tabBoutique" class="active" role="tab" aria-selected="true">Boutique</button>
@@ -460,6 +460,7 @@
       <button class="textbtn" id="printBtn">🖨 Imprimer</button>
       <span class="hint" id="printHint" style="display:none"></span>
       <button class="textbtn" id="logoutBtn">Déconnexion</button>
+      <span class="hint" id="whoAmI"></span>
     </div>
   </div>
 
@@ -490,7 +491,6 @@
 
     <div class="section-title">
       <h2>Stock &amp; Réassort</h2>
-      <span class="hint">4 dates de stock indépendantes par boutique, modifiables une par une ; Réassort demandé et BOX pour la date choisie, dans les 2 dernières colonnes (les deux sont comptés dans le besoin de production)</span>
     </div>
     <div class="subbar">
       <div class="field">
@@ -640,13 +640,12 @@
   // (création du projet, activation de Firestore et de l'authentification anonyme, règles de sécurité).
   // ---------------------------------------------------------------------
   var firebaseConfig = {
-  apiKey: "AIzaSyBQfyjXyz76JU_VuYo-nLWWReCleeGyHj4",
-  authDomain: "projet-reassort.firebaseapp.com",
-  databaseURL: "https://projet-reassort-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "projet-reassort",
-  storageBucket: "projet-reassort.firebasestorage.app",
-  messagingSenderId: "860250217168",
-  appId: "1:860250217168:web:4fc6d058468c06fa695cd5"
+    apiKey: "AIzaSyBQfyjXyz76JU_VuYo-nLWWReCleeGyHj4",
+    authDomain: "projet-reassort.firebaseapp.com",
+    projectId: "projet-reassort",
+    storageBucket: "projet-reassort.firebasestorage.app",
+    messagingSenderId: "860250217168",
+    appId: "1:860250217168:web:4fc6d058468c06fa695cd5"
   };
 
   // ---------------------------------------------------------------------
@@ -980,7 +979,7 @@
   function updatePrintHeader() {
     var stamp = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) +
       " à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    var title = "FOUD - stocks et production", meta = "";
+    var title = "FOUD <span style=\"color:var(--brand-red)\">&bull;</span> stocks et production", meta = "";
     if (currentView === "boutique") {
       title += " — " + siteLabel(siteSelect.value);
       meta = "Stock&nbsp;: " + stockColumnDates.map(shortLabel).join(", ") +
@@ -1108,6 +1107,7 @@
   var authLoadingHint = document.getElementById("authLoadingHint");
   var rolePill = document.getElementById("rolePill");
   var logoutBtn = document.getElementById("logoutBtn");
+  var whoAmI = document.getElementById("whoAmI");
 
   if (session && session.role) { authGate.style.display = "none"; }
 
@@ -1163,13 +1163,13 @@
     if (!accessSettings) { authError.textContent = "Chargement en cours, réessayez."; return; }
     var hash = await sha256Hex(adminPasswordInput.value);
     if (adminIdInput.value.trim() === accessSettings.adminId && hash === accessSettings.adminHash) {
-      session = { role: "admin" }; saveSession(session);
+      session = { role: "admin", adminId: adminIdInput.value.trim() }; saveSession(session);
       authError.textContent = ""; adminPasswordInput.value = "";
       authGate.style.display = "none"; applyRoleGating();
     } else { authError.textContent = "Identifiant ou mot de passe incorrect."; }
   });
 
-  logoutBtn.addEventListener("click", function () { session = null; clearSession(); authGate.style.display = "flex"; });
+  logoutBtn.addEventListener("click", function () { session = null; clearSession(); whoAmI.textContent = ""; authGate.style.display = "flex"; });
 
   var accessSettings = null;
   var accessSettingsLoadedOnce = false;
@@ -1190,6 +1190,11 @@
     var isAdmin = session.role === "admin";
     var isCuisine = session.role === "cuisine";
     rolePill.textContent = isAdmin ? "Admin" : isCuisine ? "Cuisine" : "Manager";
+    whoAmI.textContent = isAdmin
+      ? "Connecté : " + (session.adminId || "admin")
+      : isCuisine
+      ? "Connecté : cuisine"
+      : "Connecté : " + (session.managerEmail || "manager") + (session.site ? " (" + siteLabel(session.site) + ")" : "");
 
     // La cuisine n'a accès qu'à l'onglet Production — tout le reste lui est masqué, quelles que
     // soient les permissions boutique configurées par l'admin (celles-ci ne concernent que les managers).
