@@ -374,7 +374,7 @@
   #printBtn { font-size: 13.5px; }
 
   @media print {
-    @page { size: A4 landscape; margin: 12mm; }
+    @page { size: A4 portrait; margin: 12mm; }
     * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
     body { background: #fff; padding: 0; }
     .wrap { max-width: none; display: block; }
@@ -425,6 +425,13 @@
     .cat-head .count { font-size: 10.5px; }
     thead th { padding: 3px 8px; font-size: 9.5px; }
     tbody td { padding: 3px 8px; font-size: 12px; }
+
+    /* Boutique à l'impression : seul le Total compte, les 4 colonnes de dates de stock (JEU 17/09…)
+       sont masquées pour gagner de la place — elles restent éditables à l'écran, seul l'imprimé
+       change. Ce sont les seules cellules ".num" de ce tableau sans classe total-col/reassort-col/
+       box-col, donc pas besoin de leur ajouter une classe dédiée : on cible tout ce qui reste. */
+    #catListStock th.num:not(.total-col):not(.reassort-col):not(.box-col),
+    #catListStock td.num:not(.total-col):not(.reassort-col):not(.box-col) { display: none; }
 
     .scrollx { overflow: visible !important; }
     table { break-inside: auto; }
