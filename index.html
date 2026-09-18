@@ -250,6 +250,9 @@
   thead th.reassort-col { background: var(--warning-wash); color: var(--warning); }
   .box-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--accent-wash); }
   thead th.box-col { background: var(--accent-wash); color: var(--accent); }
+  /* Colonne tout à droite de Boutique : réassort + BOX cumulés par produit. */
+  .total-reassort-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--good-wash); }
+  thead th.total-reassort-col { background: var(--good-wash); color: var(--good); }
   .num-zero { color: var(--ink-3); font-weight: 400; }
   .num-nonzero { color: var(--ink); font-weight: 600; }
 
@@ -434,8 +437,8 @@
        sont masquées pour gagner de la place — elles restent éditables à l'écran, seul l'imprimé
        change. Ce sont les seules cellules ".num" de ce tableau sans classe total-col/reassort-col/
        box-col, donc pas besoin de leur ajouter une classe dédiée : on cible tout ce qui reste. */
-    #catListStock th.num:not(.total-col):not(.reassort-col):not(.box-col),
-    #catListStock td.num:not(.total-col):not(.reassort-col):not(.box-col) { display: none; }
+    #catListStock th.num:not(.total-col):not(.reassort-col):not(.box-col):not(.total-reassort-col),
+    #catListStock td.num:not(.total-col):not(.reassort-col):not(.box-col):not(.total-reassort-col) { display: none; }
 
     /* ".row-inactive-product" sert aussi à griser une catégorie ENTIÈRE désactivée (voir plus haut
        dans le CSS et buildStockGrid()) — on ne cible donc que les <tr> (produits individuellement
@@ -1754,6 +1757,7 @@
   var stockPending = {};         // date -> { productId: newValue }
   var stockInputsByCol = stockColumnDates.map(function () { return {}; }); // [colIndex] -> { productId: <input> }
   var stockTotalCellsByProduct = {};
+  var stockTotalReassortCellsByProduct = {};   // productId -> <td> de la colonne "Total réassort" (réassort + BOX)
   var stockCatHeadTotals = {};   // catId -> { reassort: <span>, box: <span> } — totaux affichés dans le bandeau
   var stockUnsubs = [];
 
@@ -1763,6 +1767,7 @@
     catListStock.innerHTML = "";
     stockInputsByCol = stockColumnDates.map(function () { return {}; });
     stockTotalCellsByProduct = {};
+    stockTotalReassortCellsByProduct = {};
     stockCatHeadTotals = {};
     reassortInputs = {}; reassortHeaderEls = [];
     boxInputs = {};
@@ -1801,7 +1806,7 @@
       var table = document.createElement("table");
       var theadHtml = "<thead><tr><th class=\"name-col\">Produit</th>";
       stockColumnDates.forEach(function (d) { theadHtml += "<th class=\"num\">" + shortLabel(d) + "</th>"; });
-      theadHtml += "<th class=\"num total-col\">Total</th><th class=\"num reassort-col\">Réassort demandé</th><th class=\"num box-col\">BOX</th></tr></thead>";
+      theadHtml += "<th class=\"num total-col\">STOCKS</th><th class=\"num reassort-col\">Réassort demandé</th><th class=\"num box-col\">BOX</th><th class=\"num total-reassort-col\">Total réassort</th></tr></thead>";
       table.innerHTML = theadHtml;
       var reassortTh = table.querySelector("thead th.reassort-col");
       reassortHeaderEls.push(reassortTh);
@@ -1853,6 +1858,10 @@
         tdBox.appendChild(boxInp); tr.appendChild(tdBox);
         boxInputs[it.id] = boxInp;
 
+        var tdTotalReassort = document.createElement("td"); tdTotalReassort.className = "num total-reassort-col"; tdTotalReassort.textContent = "0";
+        tr.appendChild(tdTotalReassort);
+        stockTotalReassortCellsByProduct[it.id] = tdTotalReassort;
+
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -1881,14 +1890,18 @@
   function recomputeStockCategoryTotals() {
     catalog.forEach(function (cat) {
       var els = stockCatHeadTotals[cat.id];
-      if (!els) return;
       var reassortSum = 0, boxSum = 0;
       (cat.items || []).forEach(function (it) {
         var rInp = reassortInputs[it.id];
         var bInp = boxInputs[it.id];
-        if (rInp) reassortSum += Number(rInp.value) || 0;
-        if (bInp) boxSum += Number(bInp.value) || 0;
+        var r = rInp ? (Number(rInp.value) || 0) : 0;
+        var b = bInp ? (Number(bInp.value) || 0) : 0;
+        reassortSum += r; boxSum += b;
+        // Colonne "Total réassort" (tout à droite du tableau Boutique) : réassort + BOX, par produit.
+        var totalCell = stockTotalReassortCellsByProduct[it.id];
+        if (totalCell) totalCell.textContent = r + b;
       });
+      if (!els) return;
       els.reassort.innerHTML = "<span class=\"lbl\">Réassort</span>" + reassortSum;
       els.box.innerHTML = "<span class=\"lbl\">BOX</span>" + boxSum;
     });
