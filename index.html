@@ -261,9 +261,6 @@
   .status-chip.good { background: var(--good-wash); color: var(--good); }
   .status-chip.good .dot { background: var(--good); }
 
-  .check { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--border-strong); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; padding: 0; }
-  .check.on { background: var(--good); border-color: var(--good); }
-
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); padding: 2px 2px; }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend .dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -432,6 +429,12 @@
        box-col, donc pas besoin de leur ajouter une classe dédiée : on cible tout ce qui reste. */
     #catListStock th.num:not(.total-col):not(.reassort-col):not(.box-col),
     #catListStock td.num:not(.total-col):not(.reassort-col):not(.box-col) { display: none; }
+
+    /* ".row-inactive-product" sert aussi à griser une catégorie ENTIÈRE désactivée (voir plus haut
+       dans le CSS et buildStockGrid()) — on ne cible donc que les <tr> (produits individuellement
+       inactifs, ou appartenant à une catégorie désactivée), jamais ".cat.row-inactive-product", pour
+       ne pas faire disparaître des catégories entières à l'impression. */
+    #catListStock tr.row-inactive-product { display: none; }
 
     .scrollx { overflow: visible !important; }
     table { break-inside: auto; }
@@ -2356,7 +2359,7 @@
       var table = document.createElement("table");
       table.innerHTML = "<thead><tr>" +
         "<th class=\"name-col\">Produit</th><th class=\"num\">Stocks J-1</th><th class=\"num\">Stocks J</th><th class=\"num hide-sm\">Réassort demandé</th>" +
-        "<th class=\"num\">Prévision</th><th class=\"num\">À produire</th><th>Statut</th><th style=\"text-align:center\">Fait</th>" +
+        "<th class=\"num\">Prévision</th><th class=\"num\">À produire</th><th>Statut</th>" +
         "</tr></thead>";
       var tbody = document.createElement("tbody");
       items.forEach(function (it) {
@@ -2397,13 +2400,8 @@
         tr.appendChild(tdForecast);
         var tdProduce = document.createElement("td"); tdProduce.className = "num produce-val"; tr.appendChild(tdProduce);
         var tdStatus = document.createElement("td"); tr.appendChild(tdStatus);
-        var tdCheck = document.createElement("td"); tdCheck.style.textAlign = "center";
-        var checkBtn = document.createElement("button");
-        checkBtn.className = "check"; checkBtn.type = "button"; checkBtn.setAttribute("aria-label", "Marquer produit");
-        checkBtn.addEventListener("click", function () { toggleProduced(it.id); });
-        tdCheck.appendChild(checkBtn); tr.appendChild(tdCheck);
         tbody.appendChild(tr);
-        prodRowRefs[it.id] = { rowEl: tr, catId: cat.id, stockInputJ1: stockInputJ1, stockInputJ: stockInputJ, reassortCell: tdReassort, forecastInput: forecastInput, forecastCell: tdForecast, forecastCommentBadge: forecastCommentBadge, produceCell: tdProduce, statusCell: tdStatus, checkBtn: checkBtn };
+        prodRowRefs[it.id] = { rowEl: tr, catId: cat.id, stockInputJ1: stockInputJ1, stockInputJ: stockInputJ, reassortCell: tdReassort, forecastInput: forecastInput, forecastCell: tdForecast, forecastCommentBadge: forecastCommentBadge, produceCell: tdProduce, statusCell: tdStatus };
       });
       table.appendChild(tbody); scroller.appendChild(table); card.appendChild(scroller);
       catListProduction.appendChild(card);
@@ -2430,11 +2428,6 @@
     var label = field === "stocksJ1" ? "Stock disponible J-1 modifié : " : "Stock disponible J modifié : ";
     timers[productId] = setTimeout(function () { saveProductionDoc(label + productName(productId)); }, 500);
   }
-  function toggleProduced(productId) {
-    prodDocCache.produced[productId] = !prodDocCache.produced[productId];
-    saveProductionDoc((prodDocCache.produced[productId] ? "Marqué fait : " : "Marqué non fait : ") + productName(productId));
-  }
-
   // Commentaire de cellule sur la colonne Prévision (clic droit pour ouvrir/éditer, survol pour
   // voir l'info-bulle via l'attribut title, pictogramme 📝 affiché quand un commentaire existe).
   var cellCommentPopover = null;
@@ -2531,9 +2524,9 @@
       var stockJ = hasStockJ ? prodDocCache.stocksJ[it.id] : 0;
       var stock = stockJ1 + stockJ; // Les 2 colonnes de Stock disponible ("J-1" + "J") sont cumulables.
       var reassort = reassortTotals[it.id] || 0, box = boxTotals[it.id] || 0;
-      var forecast = hasForecast ? prodDocCache.forecasts[it.id] : 0;
+      var forecast = hasForecast ? prodDocCache.forecasts[it.id] : 0; // Prévision : purement informative, n'entre dans aucun calcul.
       var demand = reassort + box; // Réassort boutiques + BOX = besoin total, affiché en une seule colonne
-      var toProduce = Math.max(demand, forecast) - stock;
+      var toProduce = demand - stock;
       if (toProduce < 0) toProduce = 0;
       // Case vierge tant qu'aucune valeur n'a été saisie pour ce produit (pas de faux "0").
       if (document.activeElement !== refs.stockInputJ1) refs.stockInputJ1.value = hasStockJ1 ? stockJ1 : "";
@@ -2542,16 +2535,13 @@
       refs.produceCell.textContent = toProduce;
       if (document.activeElement !== refs.forecastInput) refs.forecastInput.value = hasForecast ? forecast : "";
       var status, chip;
-      if (stock <= 0 && (demand > 0 || forecast > 0)) { status = "critical"; chip = "<span class=\"status-chip crit\"><span class=\"dot\"></span>Rupture</span>"; criticalCount++; }
+      if (stock <= 0 && demand > 0) { status = "critical"; chip = "<span class=\"status-chip crit\"><span class=\"dot\"></span>Rupture</span>"; criticalCount++; }
       else if (toProduce > 0) { status = "warning"; chip = "<span class=\"status-chip warn\"><span class=\"dot\"></span>À produire</span>"; }
       else { status = "good"; chip = "<span class=\"status-chip good\"><span class=\"dot\"></span>Couvert</span>"; }
       refs.statusCell.innerHTML = chip;
       refs.rowEl.className = "row-" + status;
       if (prodCategoryFilter === "all" || refs.catId === prodCategoryFilter) totalToProduce += toProduce;
       if (refs.catId === "plats") totalBox += box; // Tuile BOX : uniquement la catégorie "Plats", indépendamment du filtre catégorie.
-      var done = !!prodDocCache.produced[it.id];
-      refs.checkBtn.className = "check" + (done ? " on" : "");
-      refs.checkBtn.textContent = done ? "✓" : "";
       updateForecastCommentUI(it.id);
     });
 
@@ -3044,13 +3034,12 @@
         card.appendChild(chead);
         var scroller = document.createElement("div"); scroller.className = "scrollx";
         var table = document.createElement("table");
-        table.innerHTML = "<thead><tr><th class=\"name-col\">Produit</th><th class=\"num\">Stock J-1</th><th class=\"num\">Stock J</th><th class=\"num\">Prévision</th><th style=\"text-align:center\">Fait</th></tr></thead>";
+        table.innerHTML = "<thead><tr><th class=\"name-col\">Produit</th><th class=\"num\">Stock J-1</th><th class=\"num\">Stock J</th><th class=\"num\">Prévision</th></tr></thead>";
         var tbody = document.createElement("tbody");
         var pids = {};
         Object.keys(p.forecasts || {}).forEach(function (pid) { pids[pid] = true; });
         Object.keys(p.stocksJ1 || {}).forEach(function (pid) { pids[pid] = true; });
         Object.keys(p.stocksJ || {}).forEach(function (pid) { pids[pid] = true; });
-        Object.keys(p.produced || {}).forEach(function (pid) { pids[pid] = true; });
         Object.keys(pids).forEach(function (pid) {
           var tr = document.createElement("tr");
           var tdName = document.createElement("td"); tdName.className = "name"; tdName.textContent = bvProductName(pid); tr.appendChild(tdName);
@@ -3059,8 +3048,6 @@
             var td = document.createElement("td"); td.className = "num " + (v ? "num-nonzero" : "num-zero"); td.textContent = v != null ? v : "–";
             tr.appendChild(td);
           });
-          var tdDone = document.createElement("td"); tdDone.style.textAlign = "center"; tdDone.textContent = (p.produced || {})[pid] ? "✓" : "";
-          tr.appendChild(tdDone);
           tbody.appendChild(tr);
         });
         table.appendChild(tbody);
