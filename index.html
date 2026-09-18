@@ -204,6 +204,12 @@
   .cat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; gap: 10px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
   .cat-head h2 { font-family: "Epilogue", sans-serif; font-size: 16px; letter-spacing: 0.05em; margin: 0; font-weight: 700; color: var(--ink-2); }
   .cat-head .count { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+  /* Bandeau Boutique : totaux Réassort/BOX de la catégorie, à côté du compteur de produits. */
+  .cat-head-right { display: flex; align-items: center; gap: 8px; }
+  .cat-head-total { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .cat-head-total .lbl { font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.03em; font-size: 10px; }
+  .cat-head-total.reassort { background: var(--warning-wash); color: var(--warning); }
+  .cat-head-total.box { background: var(--accent-wash); color: var(--accent); }
   /* Code couleur pastel par catégorie, en-tête de carte (Entrées/Plats/Desserts/Pain/Fromages/Yaourts) —
      Commentaires reprend plutôt la couleur de chaque boutique, appliquée dynamiquement en JS (voir
      buildCommentsRecap() et updateCommentsSectionColor()). */
@@ -420,6 +426,7 @@
     .cat-head { background: #eee !important; padding: 6px 12px; break-after: avoid; }
     .cat-head h2 { font-size: 14px; }
     .cat-head .count { font-size: 10.5px; }
+    .cat-head-total { font-size: 10.5px; padding: 2px 7px; }
     thead th { padding: 3px 8px; font-size: 9.5px; }
     tbody td { padding: 3px 8px; font-size: 12px; }
 
@@ -1747,6 +1754,7 @@
   var stockPending = {};         // date -> { productId: newValue }
   var stockInputsByCol = stockColumnDates.map(function () { return {}; }); // [colIndex] -> { productId: <input> }
   var stockTotalCellsByProduct = {};
+  var stockCatHeadTotals = {};   // catId -> { reassort: <span>, box: <span> } — totaux affichés dans le bandeau
   var stockUnsubs = [];
 
   function setStockStatus(cls, text) { stockSaveEl.className = "savepill " + cls; stockSaveText.textContent = text; }
@@ -1755,6 +1763,7 @@
     catListStock.innerHTML = "";
     stockInputsByCol = stockColumnDates.map(function () { return {}; });
     stockTotalCellsByProduct = {};
+    stockCatHeadTotals = {};
     reassortInputs = {}; reassortHeaderEls = [];
     boxInputs = {};
     stockGridItemActive = {};
@@ -1773,9 +1782,20 @@
       card.className = "cat" + (catIsActive ? "" : " row-inactive-product");
       var head = document.createElement("div");
       head.className = catHeadClass(cat);
-      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits" + (catIsActive ? "" : " · catégorie inactive") + "</span>";
+      var h2 = document.createElement("h2"); h2.textContent = cat.label; head.appendChild(h2);
+      var headRight = document.createElement("div"); headRight.className = "cat-head-right";
+      var countEl = document.createElement("span"); countEl.className = "count";
+      countEl.textContent = items.length + " produits" + (catIsActive ? "" : " · catégorie inactive");
+      headRight.appendChild(countEl);
+      var reassortTotalEl = document.createElement("span"); reassortTotalEl.className = "cat-head-total reassort";
+      reassortTotalEl.innerHTML = "<span class=\"lbl\">Réassort</span>0";
+      var boxTotalEl = document.createElement("span"); boxTotalEl.className = "cat-head-total box";
+      boxTotalEl.innerHTML = "<span class=\"lbl\">BOX</span>0";
+      headRight.appendChild(reassortTotalEl); headRight.appendChild(boxTotalEl);
+      head.appendChild(headRight);
       applyCategoryHeadColor(head, cat);
       card.appendChild(head);
+      stockCatHeadTotals[cat.id] = { reassort: reassortTotalEl, box: boxTotalEl };
 
       var scroller = document.createElement("div"); scroller.className = "scrollx";
       var table = document.createElement("table");
@@ -1853,6 +1873,24 @@
       });
       var cell = stockTotalCellsByProduct[it.id];
       if (cell) cell.textContent = total;
+    });
+  }
+
+  // Totaux Réassort/BOX affichés dans le bandeau de chaque catégorie (somme de tous les produits de
+  // la catégorie, actifs et inactifs — cohérent avec la colonne Total qui fait de même par produit).
+  function recomputeStockCategoryTotals() {
+    catalog.forEach(function (cat) {
+      var els = stockCatHeadTotals[cat.id];
+      if (!els) return;
+      var reassortSum = 0, boxSum = 0;
+      (cat.items || []).forEach(function (it) {
+        var rInp = reassortInputs[it.id];
+        var bInp = boxInputs[it.id];
+        if (rInp) reassortSum += Number(rInp.value) || 0;
+        if (bInp) boxSum += Number(bInp.value) || 0;
+      });
+      els.reassort.innerHTML = "<span class=\"lbl\">Réassort</span>" + reassortSum;
+      els.box.innerHTML = "<span class=\"lbl\">BOX</span>" + boxSum;
     });
   }
 
@@ -1966,6 +2004,7 @@
   }
 
   function onReassortChange() {
+    recomputeStockCategoryTotals();
     setReassortStatus("saving", "Enregistrement…");
     clearTimeout(reassortSaveTimer);
     reassortSaveTimer = setTimeout(saveReassortAndComments, 500);
@@ -2095,6 +2134,7 @@
       var raw = reassortBaseline[pid] ? reassortBaseline[pid].box : undefined;
       inp.value = (raw === undefined || raw === null) ? "" : raw;
     });
+    recomputeStockCategoryTotals();
     renderComments();
     setReassortStatus("saved", data && data.updatedAt ? "À jour" : "Pas encore saisi");
   }
