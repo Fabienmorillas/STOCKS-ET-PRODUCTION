@@ -377,7 +377,7 @@
     @page { size: A4 landscape; margin: 12mm; }
     * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
     body { background: #fff; padding: 0; }
-    .wrap { max-width: none; gap: 8px; }
+    .wrap { max-width: none; display: block; }
 
     #authGate, .topbar, footer.note,
     .subbar, .savepill,
@@ -390,12 +390,41 @@
     .print-header h1 { font-family: "Epilogue", sans-serif; font-size: 22px; margin: 0 0 3px; font-weight: 700; }
     .print-header .meta { font-size: 11.5px; color: #333; }
 
-    .section-title { margin-top: 10px; }
+    .section-title { margin: 10px 0 0; }
     .section-title .hint { display: none; }
 
     .tiles { break-inside: avoid; }
-    .cat { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
-    .cat-head { background: #eee !important; }
+
+    /* Les catégories doivent s'enchaîner les unes après les autres, sans place perdue sur la feuille.
+       .wrap et les listes de catégories (#catListStock/#catListReassortMatrix/#catListProduction/
+       #catListMenu) sont en display:flex; flex-direction:column dans l'appli (voir leur style inline
+       pour ces 4 conteneurs) — mais un conteneur flex ne se découpe pas correctement entre deux pages
+       à l'impression : le navigateur pousse souvent une carte entière à la page suivante dès qu'elle
+       ne tient plus, même s'il restait de la place, laissant le bas de la page précédente vide. En
+       bloc, chaque catégorie s'enchaîne normalement à la suite de la précédente. "gap" (flex) n'ayant
+       pas d'effet en bloc, l'espacement entre cartes est repris ici via une marge.
+    */
+    #catListStock, #catListReassortMatrix, #catListProduction, #catListMenu { display: block !important; }
+    #catListStock > .cat, #catListReassortMatrix > .cat,
+    #catListProduction > .cat, #catListMenu > .cat { margin: 0 0 6px; }
+    #catListStock > .cat:last-child, #catListReassortMatrix > .cat:last-child,
+    #catListProduction > .cat:last-child, #catListMenu > .cat:last-child { margin-bottom: 0; }
+
+    /* Une grosse catégorie (ex. "Plats" avec 18 produits) peut dépasser la place restante en bas de
+       page : plutôt que de la pousser en bloc à la page suivante (et laisser tout le reste de la page
+       courante vide), on la laisse se couper au milieu de son tableau — chaque ligne de produit reste
+       entière (tr break-inside:avoid) et l'en-tête de colonnes se répète en haut de la page suivante
+       (thead display:table-header-group, déjà en place). .cat perd donc son overflow:hidden habituel
+       (qui empêcherait toute coupure) et son break-inside:avoid ; seul .cat-head garde
+       break-after:avoid pour ne jamais laisser le bandeau de titre seul en bas d'une page, séparé de
+       ses produits.
+    */
+    .cat { box-shadow: none; border: 1px solid #999; overflow: visible; }
+    .cat-head { background: #eee !important; padding: 6px 12px; break-after: avoid; }
+    .cat-head h2 { font-size: 14px; }
+    .cat-head .count { font-size: 10.5px; }
+    thead th { padding: 3px 8px; font-size: 9.5px; }
+    tbody td { padding: 3px 8px; font-size: 12px; }
 
     .scrollx { overflow: visible !important; }
     table { break-inside: auto; }
@@ -800,6 +829,10 @@
   // elle reste néanmoins visible (grisée) dans la grille Stock de Boutique, voir buildStockGrid().
   function categoryActive(cat) { return cat && cat.active !== false; }
   function activeItems(cat) { return categoryActive(cat) ? cat.items.filter(function (it) { return it.active !== false; }) : []; }
+  // Bouton "PROD" par catégorie (voir buildMenuView()) : indépendant de active/inactive — une
+  // catégorie peut rester active partout (Boutique, Réassort, BOX) mais être retirée du seul onglet
+  // Production (utile pour une catégorie qui n'a pas besoin de planification de production).
+  function categoryInProduction(cat) { return categoryActive(cat) && cat.prod !== false; }
   function allItems() {
     var out = [];
     catalog.forEach(function (cat) { cat.items.forEach(function (it) { out.push(it); }); });
@@ -861,14 +894,15 @@
   // n'interviennent qu'à partir de cette heure-là (pas à minuit) — voir nextReassortDate() et
   // checkDailyReset() plus bas.
   var DAILY_CUTOVER_HOUR = 10;
-  // Date de réassort par défaut : le lendemain, sauf le vendredi où elle passe au lundi (on saute le
-  // week-end) — mais la bascule vers le jour suivant n'a lieu qu'à partir de DAILY_CUTOVER_HOUR ;
-  // avant cette heure, on reste sur la date qui était déjà affichée la veille.
+  // Date de réassort par défaut : le lendemain, sauf le vendredi et le week-end où elle passe au
+  // lundi suivant (on saute le week-end, quel que soit le jour où l'on consulte l'appli) — mais la
+  // bascule vers le jour suivant n'a lieu qu'à partir de DAILY_CUTOVER_HOUR ; avant cette heure, on
+  // reste sur la date qui était déjà affichée la veille.
   function nextReassortDate() {
     var now = new Date();
     var refIso = now.getHours() < DAILY_CUTOVER_HOUR ? addDays(todayISO(), -1) : todayISO();
     var dow = dateFromISO(refIso).getDay(); // 0 = dimanche … 5 = vendredi, 6 = samedi
-    var add = dow === 5 ? 3 : 1;
+    var add = dow === 5 ? 3 : dow === 6 ? 2 : 1; // ven→lun (+3), sam→lun (+2), dim→lun (+1 déjà)
     return addDays(refIso, add);
   }
 
@@ -2260,7 +2294,7 @@
     var prev = prodCatFilterEl.value || prodCategoryFilter || "all";
     prodCatFilterEl.innerHTML = "<option value=\"all\">Toutes catégories</option>";
     catalog.forEach(function (cat) {
-      if (!activeItems(cat).length) return;
+      if (!categoryInProduction(cat) || !activeItems(cat).length) return;
       var opt = document.createElement("option");
       opt.value = cat.id; opt.textContent = cat.label;
       prodCatFilterEl.appendChild(opt);
@@ -2303,6 +2337,7 @@
     closeCellCommentPopover();
     catListProduction.innerHTML = ""; prodRowRefs = {};
     catalog.forEach(function (cat) {
+      if (!categoryInProduction(cat)) return;
       var items = activeItems(cat);
       if (!items.length) return;
       var card = document.createElement("div"); card.className = "cat"; card.dataset.catId = cat.id;
@@ -2651,6 +2686,18 @@
         saveCatalog();
       });
       headRight.appendChild(catToggle);
+      var prodToggle = document.createElement("button");
+      prodToggle.type = "button"; prodToggle.className = "toggle-pill " + (cat.prod !== false ? "on" : "off");
+      prodToggle.textContent = "PROD";
+      prodToggle.title = cat.prod !== false
+        ? "Cette catégorie apparaît dans l'onglet Production — cliquer pour l'en retirer."
+        : "Cette catégorie n'apparaît pas dans l'onglet Production — cliquer pour l'y ajouter.";
+      prodToggle.addEventListener("click", function () {
+        cat.prod = cat.prod === false ? true : false;
+        logJournal((cat.prod !== false ? "Catégorie ajoutée à la Production : « " : "Catégorie retirée de la Production : « ") + cat.label + " »");
+        saveCatalog();
+      });
+      headRight.appendChild(prodToggle);
       var moveUp = document.createElement("button");
       moveUp.className = "ghostbtn"; moveUp.type = "button"; moveUp.title = "Monter"; moveUp.textContent = "▲"; moveUp.disabled = catIdx === 0;
       moveUp.addEventListener("click", function () { catalog.splice(catIdx - 1, 0, catalog.splice(catIdx, 1)[0]); logJournal("Catégorie déplacée : « " + cat.label + " »"); saveCatalog(); });
