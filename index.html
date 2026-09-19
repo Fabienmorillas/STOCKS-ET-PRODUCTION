@@ -250,8 +250,11 @@
   thead th.reassort-col { background: var(--warning-wash); color: var(--warning); }
   .box-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--accent-wash); }
   thead th.box-col { background: var(--accent-wash); color: var(--accent); }
-  /* Colonne tout à droite de Boutique : réassort + BOX cumulés par produit. */
+  /* Colonne tout à droite de Boutique : réassort + BOX cumulés par produit — chiffres plus grands
+     que les autres colonnes (14px) pour rester la plus lisible d'un coup d'œil, à l'écran comme à
+     l'impression. */
   .total-reassort-col { font-weight: 700; border-left: 1px solid var(--border-strong); background: var(--good-wash); }
+  #catListStock td.total-reassort-col { font-size: 17px; }
   thead th.total-reassort-col { background: var(--good-wash); color: var(--good); }
   .num-zero { color: var(--ink-3); font-weight: 400; }
   .num-nonzero { color: var(--ink); font-weight: 600; }
@@ -449,6 +452,10 @@
        graisse normale). */
     #catListStock td.total-col, #catListStock td.reassort-col, #catListStock td.box-col { font-weight: 400; }
     #catListStock td.total-reassort-col { font-weight: 700; }
+    /* Même hiérarchie de tailles qu'à l'écran : 14px pour toutes les colonnes de Boutique, sauf
+       "Total réassort" qui reste à 17px (règle plus haut, hors media print — plus spécifique que
+       celle-ci, donc toujours prioritaire ici) pour rester la plus lisible d'un coup d'œil. */
+    #catListStock tbody td { font-size: 14px; }
 
     /* ".row-inactive-product" sert aussi à griser une catégorie ENTIÈRE désactivée (voir plus haut
        dans le CSS et buildStockGrid()) — on ne cible donc que les <tr> (produits individuellement
@@ -1032,6 +1039,11 @@
     tabMenu.setAttribute("aria-selected", String(name === "menu"));
     tabParametres.setAttribute("aria-selected", String(name === "parametres"));
     try { localStorage.setItem("foud_view", name); } catch (e) {}
+    // Boutique n'était rafraîchi que par l'écho Firestore du catalogue (onCatalogChanged()) : une
+    // catégorie/un produit ajouté dans Menu pouvait donc rester invisible en Boutique tant que cet
+    // écho n'était pas (encore) arrivé, alors que Réassort/Production/Menu se reconstruisent, eux,
+    // à chaque ouverture de leur onglet. On aligne Boutique sur le même principe.
+    if (name === "boutique") subscribeStockWeek();
     if (name === "reassort") refreshReassortMatrix();
     if (name === "comments") refreshCommentsRecap();
     if (name === "production") refreshProductionSubscriptions();
