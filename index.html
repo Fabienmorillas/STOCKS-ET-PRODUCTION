@@ -210,6 +210,7 @@
   .cat-head-total .lbl { font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.03em; font-size: 10px; }
   .cat-head-total.reassort { background: var(--warning-wash); color: var(--warning); }
   .cat-head-total.box { background: var(--accent-wash); color: var(--accent); }
+  .cat-head-total.produce { background: var(--warning-wash); color: var(--warning); }
   /* Code couleur pastel par catégorie, en-tête de carte (Entrées/Plats/Desserts/Pain/Fromages/Yaourts) —
      Commentaires reprend plutôt la couleur de chaque boutique, appliquée dynamiquement en JS (voir
      buildCommentsRecap() et updateCommentsSectionColor()). */
@@ -259,7 +260,12 @@
   .num-zero { color: var(--ink-3); font-weight: 400; }
   .num-nonzero { color: var(--ink); font-weight: 600; }
 
-  .produce-val { font-weight: 700; font-size: 14.5px; }
+  /* "À produire" plus grand que les autres colonnes de Production (14px) pour rester la plus
+     lisible d'un coup d'œil, à l'écran comme à l'impression. La règle ID+classe ci-dessous a une
+     spécificité plus forte que "#catListProduction tbody td" (impression, voir plus bas), donc elle
+     l'emporte toujours. */
+  .produce-val { font-weight: 700; font-size: 17px; }
+  #catListProduction td.produce-val { font-size: 17px; }
   .row-critical .produce-val { color: var(--critical); }
   .row-warning .produce-val { color: var(--warning); }
   .row-good .produce-val { color: var(--good); }
@@ -436,6 +442,12 @@
     thead th { padding: 3px 8px; font-size: 9.5px; }
     tbody td { padding: 3px 8px; font-size: 12px; }
 
+    /* Production à l'impression garde la même hiérarchie de tailles qu'à l'écran : 14px pour toutes
+       les colonnes, sauf "À produire" qui reste à 17px (règle plus haut, hors media print — plus
+       spécifique que celle-ci, donc toujours prioritaire ici) pour rester la plus lisible d'un coup
+       d'œil. */
+    #catListProduction tbody td { font-size: 14px; }
+
     /* Boutique à l'impression : seul le Total compte, les 4 colonnes de dates de stock (JEU 17/09…)
        sont masquées pour gagner de la place — elles restent éditables à l'écran, seul l'imprimé
        change. Ce sont les seules cellules ".num" de ce tableau sans classe total-col/reassort-col/
@@ -457,11 +469,12 @@
        celle-ci, donc toujours prioritaire ici) pour rester la plus lisible d'un coup d'œil. */
     #catListStock tbody td { font-size: 14px; }
 
-    /* ".row-inactive-product" sert aussi à griser une catégorie ENTIÈRE désactivée (voir plus haut
-       dans le CSS et buildStockGrid()) — on ne cible donc que les <tr> (produits individuellement
-       inactifs, ou appartenant à une catégorie désactivée), jamais ".cat.row-inactive-product", pour
-       ne pas faire disparaître des catégories entières à l'impression. */
+    /* Produits individuellement inactifs : masqués à l'impression (visibles à l'écran pour écouler
+       le stock restant). ".row-inactive-product" sert aussi à griser une catégorie ENTIÈRE désactivée
+       (voir buildStockGrid()) — une catégorie inactive ne doit pas non plus apparaître à l'impression,
+       donc on masque ici sa carte ".cat" en plus de ses lignes. */
     #catListStock tr.row-inactive-product { display: none; }
+    #catListStock > .cat.row-inactive-product { display: none; }
 
     .scrollx { overflow: visible !important; }
     table { break-inside: auto; }
@@ -842,6 +855,12 @@
   // puis remplacée par la vraie liste enregistrée dès qu'elle arrive de la base (voir bootSites()).
   var SITES = deepClone(DEFAULT_SITES);
   var sitesLoadedOnce = false;
+  // Dates des colonnes de Stock : indépendantes par boutique, enregistrées en base (voir
+  // bootStockDates() plus bas) pour rester identiques quel que soit le poste/l'appareil utilisé —
+  // seule une action humaine (saisie d'une date ou bouton "Aujourd'hui + 3j") les change, jamais un
+  // rechargement de page ou un changement d'appareil.
+  var STOCK_DATES_PATH = "settings/stockDates";
+  var stockDatesLoadedOnce = false;
 
   function renderSiteChipsInto(el, sites) {
     el.innerHTML = "";
@@ -1751,6 +1770,16 @@
     if (Array.isArray(arr) && arr.length === STOCK_VISIBLE_DAYS) return arr.slice();
     return defaultStockColumnDates();
   }
+  // Enregistre les dates de colonnes de la boutique courante : en local tout de suite (repli hors
+  // ligne) et en base (voir bootStockDates()) pour qu'elles restent les mêmes sur tout appareil
+  // ouvrant cette boutique, tant qu'un humain ne les change pas explicitement ici.
+  async function saveStockColumnDatesBySite(site) {
+    saveStockColumnDatesBySiteToStorage();
+    logJournal("Dates de stock modifiées pour " + siteLabel(site), site);
+    await dbReady;
+    if (!db) return;
+    try { await db.doc(STOCK_DATES_PATH).set({ bySite: stockColumnDatesBySite, updatedAt: new Date().toISOString() }); } catch (e) {}
+  }
 
   var stockColumnDatesBySite = loadStockColumnDatesBySite(); // site -> [4 dates], indépendant par boutique
   var stockColumnDates = getStockColumnDatesForSite(siteSelect.value); // dates actives pour la boutique sélectionnée
@@ -1761,7 +1790,7 @@
     inp.addEventListener("change", function () {
       if (inp.value) { stockColumnDates[i] = inp.value; } else { inp.value = stockColumnDates[i]; }
       stockColumnDatesBySite[siteSelect.value] = stockColumnDates.slice();
-      saveStockColumnDatesBySiteToStorage();
+      saveStockColumnDatesBySite(siteSelect.value);
       subscribeStockWeek();
     });
   });
@@ -1769,7 +1798,7 @@
     stockColumnDates = defaultStockColumnDates();
     refreshStockColDateInputs();
     stockColumnDatesBySite[siteSelect.value] = stockColumnDates.slice();
-    saveStockColumnDatesBySiteToStorage();
+    saveStockColumnDatesBySite(siteSelect.value);
     subscribeStockWeek();
   });
   function onSiteChangedForStockDates() {
@@ -2402,6 +2431,7 @@
   });
 
   var prodRowRefs = {};
+  var prodCatHeadTotals = {};   // catId -> { produce: <span> } — total "à produire" affiché dans le bandeau
   var prodUnsubEntries = null;
   var prodUnsubDoc = null;
   // Stock disponible cumulable sur 2 colonnes : "J-1" (stockJ1) + "J" (stockJ) — voir recomputeProduction().
@@ -2422,16 +2452,25 @@
 
   function buildProductionTable() {
     closeCellCommentPopover();
-    catListProduction.innerHTML = ""; prodRowRefs = {};
+    catListProduction.innerHTML = ""; prodRowRefs = {}; prodCatHeadTotals = {};
     catalog.forEach(function (cat) {
       if (!categoryInProduction(cat)) return;
       var items = activeItems(cat);
       if (!items.length) return;
       var card = document.createElement("div"); card.className = "cat"; card.dataset.catId = cat.id;
       var head = document.createElement("div"); head.className = catHeadClass(cat);
-      head.innerHTML = "<h2>" + cat.label + "</h2><span class=\"count\">" + items.length + " produits</span>";
+      var h2 = document.createElement("h2"); h2.textContent = cat.label; head.appendChild(h2);
+      var headRight = document.createElement("div"); headRight.className = "cat-head-right";
+      var countEl = document.createElement("span"); countEl.className = "count";
+      countEl.textContent = items.length + " produits";
+      headRight.appendChild(countEl);
+      var produceTotalEl = document.createElement("span"); produceTotalEl.className = "cat-head-total produce";
+      produceTotalEl.innerHTML = "<span class=\"lbl\">À produire</span>0";
+      headRight.appendChild(produceTotalEl);
+      head.appendChild(headRight);
       applyCategoryHeadColor(head, cat);
       card.appendChild(head);
+      prodCatHeadTotals[cat.id] = { produce: produceTotalEl };
       var scroller = document.createElement("div"); scroller.className = "scrollx";
       var table = document.createElement("table");
       table.innerHTML = "<thead><tr>" +
@@ -2591,6 +2630,8 @@
     });
 
     var criticalCount = 0, totalToProduce = 0, totalBox = 0;
+    var catToProduceTotals = {};
+    Object.keys(prodCatHeadTotals).forEach(function (catId) { catToProduceTotals[catId] = 0; });
     allActiveItems().forEach(function (it) {
       var refs = prodRowRefs[it.id];
       if (!refs) return;
@@ -2619,7 +2660,11 @@
       refs.rowEl.className = "row-" + status;
       if (prodCategoryFilter === "all" || refs.catId === prodCategoryFilter) totalToProduce += toProduce;
       if (refs.catId === "plats") totalBox += box; // Tuile BOX : uniquement la catégorie "Plats", indépendamment du filtre catégorie.
+      if (catToProduceTotals[refs.catId] !== undefined) catToProduceTotals[refs.catId] += toProduce;
       updateForecastCommentUI(it.id);
+    });
+    Object.keys(prodCatHeadTotals).forEach(function (catId) {
+      prodCatHeadTotals[catId].produce.innerHTML = "<span class=\"lbl\">À produire</span>" + (catToProduceTotals[catId] || 0);
     });
 
     var submittedCount = Object.keys(submittedSiteIds).length;
@@ -3307,6 +3352,30 @@
     if (currentView === "comments") refreshCommentsRecap();
     if (currentView === "parametres") buildParametresView();
   }
+
+  // Dates de colonnes de Stock : chargées depuis la base pour qu'elles soient les mêmes pour une
+  // boutique donnée quel que soit l'appareil qui l'ouvre (avant ça, elles n'étaient stockées que
+  // dans le navigateur local, donc pas vraiment partagées). Tant que rien n'est enregistré en base,
+  // on repart du repli local (localStorage) déjà en mémoire, ou des dates par défaut sinon — jamais
+  // d'un recalcul automatique une fois qu'un humain les a fixées.
+  (async function bootStockDates() {
+    await dbReady;
+    if (!db) { stockDatesLoadedOnce = true; return; }
+    var ref = db.doc(STOCK_DATES_PATH);
+    ref.onSnapshot(function (snap) {
+      var incoming = (snap.exists && snap.data().bySite) ? snap.data().bySite : null;
+      if (!incoming) { incoming = stockColumnDatesBySite; ref.set({ bySite: incoming, updatedAt: new Date().toISOString() }).catch(function () {}); }
+      var firstLoad = !stockDatesLoadedOnce;
+      stockColumnDatesBySite = deepClone(incoming); stockDatesLoadedOnce = true;
+      saveStockColumnDatesBySiteToStorage();
+      if (!firstLoad) {
+        // Une modification arrivée d'un autre poste/onglet : on ne l'applique que si l'utilisateur
+        // n'est pas en train de saisir une date à l'instant, pour ne jamais écraser une frappe en cours.
+        var typingInDateInput = stockColDateInputs.indexOf(document.activeElement) !== -1;
+        if (!typingInDateInput) { onSiteChangedForStockDates(); subscribeStockWeek(); }
+      }
+    }, function () { stockDatesLoadedOnce = true; });
+  })();
 
   (async function bootSites() {
     await dbReady;
