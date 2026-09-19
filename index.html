@@ -211,6 +211,8 @@
   .cat-head-total.reassort { background: var(--warning-wash); color: var(--warning); }
   .cat-head-total.box { background: var(--accent-wash); color: var(--accent); }
   .cat-head-total.produce { background: var(--warning-wash); color: var(--warning); }
+  .cat-head-total.stock { background: var(--surface-2); color: var(--ink-2); }
+  .cat-head-total.stock-reassort { background: var(--good-wash); color: var(--good); }
   /* Code couleur pastel par catégorie, en-tête de carte (Entrées/Plats/Desserts/Pain/Fromages/Yaourts) —
      Commentaires reprend plutôt la couleur de chaque boutique, appliquée dynamiquement en JS (voir
      buildCommentsRecap() et updateCommentsSectionColor()). */
@@ -1845,15 +1847,19 @@
       var countEl = document.createElement("span"); countEl.className = "count";
       countEl.textContent = items.length + " produits" + (catIsActive ? "" : " · catégorie inactive");
       headRight.appendChild(countEl);
+      var stockTotalEl = document.createElement("span"); stockTotalEl.className = "cat-head-total stock";
+      stockTotalEl.innerHTML = "<span class=\"lbl\">Stock</span>0";
       var reassortTotalEl = document.createElement("span"); reassortTotalEl.className = "cat-head-total reassort";
       reassortTotalEl.innerHTML = "<span class=\"lbl\">Réassort</span>0";
       var boxTotalEl = document.createElement("span"); boxTotalEl.className = "cat-head-total box";
       boxTotalEl.innerHTML = "<span class=\"lbl\">BOX</span>0";
-      headRight.appendChild(reassortTotalEl); headRight.appendChild(boxTotalEl);
+      var stockReassortTotalEl = document.createElement("span"); stockReassortTotalEl.className = "cat-head-total stock-reassort";
+      stockReassortTotalEl.innerHTML = "<span class=\"lbl\">Stock + Réassort</span>0";
+      headRight.appendChild(stockTotalEl); headRight.appendChild(reassortTotalEl); headRight.appendChild(boxTotalEl); headRight.appendChild(stockReassortTotalEl);
       head.appendChild(headRight);
       applyCategoryHeadColor(head, cat);
       card.appendChild(head);
-      stockCatHeadTotals[cat.id] = { reassort: reassortTotalEl, box: boxTotalEl };
+      stockCatHeadTotals[cat.id] = { stock: stockTotalEl, reassort: reassortTotalEl, box: boxTotalEl, stockReassort: stockReassortTotalEl };
 
       var scroller = document.createElement("div"); scroller.className = "scrollx";
       var table = document.createElement("table");
@@ -1943,20 +1949,25 @@
   function recomputeStockCategoryTotals() {
     catalog.forEach(function (cat) {
       var els = stockCatHeadTotals[cat.id];
-      var reassortSum = 0, boxSum = 0;
+      var reassortSum = 0, boxSum = 0, stockSum = 0;
       (cat.items || []).forEach(function (it) {
         var rInp = reassortInputs[it.id];
         var bInp = boxInputs[it.id];
         var r = rInp ? (Number(rInp.value) || 0) : 0;
         var b = bInp ? (Number(bInp.value) || 0) : 0;
         reassortSum += r; boxSum += b;
+        // Colonne "STOCKS" : total du stock déjà disponible, par produit (voir recomputeStockTotals()).
+        var stockCell = stockTotalCellsByProduct[it.id];
+        stockSum += stockCell ? (Number(stockCell.textContent) || 0) : 0;
         // Colonne "Total réassort" (tout à droite du tableau Boutique) : réassort + BOX, par produit.
         var totalCell = stockTotalReassortCellsByProduct[it.id];
         if (totalCell) totalCell.textContent = r + b;
       });
       if (!els) return;
+      els.stock.innerHTML = "<span class=\"lbl\">Stock</span>" + stockSum;
       els.reassort.innerHTML = "<span class=\"lbl\">Réassort</span>" + reassortSum;
       els.box.innerHTML = "<span class=\"lbl\">BOX</span>" + boxSum;
+      els.stockReassort.innerHTML = "<span class=\"lbl\">Stock + Réassort</span>" + (stockSum + reassortSum);
     });
   }
 
@@ -1966,6 +1977,7 @@
     // null = case vidée par l'utilisateur : doit redevenir vierge, pas retomber à 0 (voir saveStockPending()).
     stockPending[date][productId] = input.value === "" ? null : (Number(input.value) || 0);
     recomputeStockTotals();
+    recomputeStockCategoryTotals();
     setStockStatus("saving", "Enregistrement…");
     saveStockPendingDebounced();
   }
@@ -2017,6 +2029,7 @@
       });
     });
     recomputeStockTotals();
+    recomputeStockCategoryTotals();
   }
 
   async function subscribeStockWeek() {
